@@ -1,0 +1,29 @@
+CREATE TABLE IF NOT EXISTS Project (
+    id TEXT NOT NULL PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT,
+    color TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+);
+
+selectAllProjects:
+SELECT * FROM Project ORDER BY created_at ASC;
+
+selectProjectById:
+SELECT * FROM Project WHERE id = ?;
+
+insertProject:
+INSERT OR REPLACE INTO Project(id, name, description, color, created_at, updated_at)
+VALUES (?, ?, ?, ?, ?, ?);
+
+updateProject:
+UPDATE Project
+SET name = ?, description = ?, color = ?, updated_at = ?
+WHERE id = ?;
+
+deleteProject:
+DELETE FROM Project WHERE id = ?;
+
+countProjects:
+SELECT COUNT(*) FROM Project;

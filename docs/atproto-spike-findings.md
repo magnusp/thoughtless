@@ -7,21 +7,24 @@ This document captures the evaluation, architecture choices, and implementation 
 ## 1. Client Library Evaluation
 
 ### Evaluated Options
-1. **Third-party SDKs (`atproto-kotlin`, `kbsky`)**:
-   - Both libraries are designed specifically for Bluesky's social network lexicons (`app.bsky.feed.post`, etc.).
-   - Using them for custom schemas (`thoughtless.task`) requires either writing a code generator plugin for Lexicon files or falling back to raw low-level calls.
-   - Introducing external SDKs adds risk of compiler/runtime version mismatch with Compose Multiplatform and newer Kotlin versions.
-2. **Custom Ktor XRPC Client (Chosen)**:
-   - Built directly on top of `ktor-client` and `kotlinx-serialization-json`.
+1. **Third-party SDKs (`christiandeange/ozone`, `atproto-kotlin`, `kbsky`)**:
+   - **`christiandeange/ozone`**: A comprehensive Kotlin Multiplatform SDK for ATProto and Bluesky. It provides Ktor-based XRPC transport, ATProto OAuth 2.0 (with PKCE and DPoP), Jetstream client, and rich text facet rendering in Compose. It generates code primarily against upstream official Bluesky lexicons (`app.bsky.*`).
+   - **`atproto-kotlin` / `kbsky`**: Similar multiplatform wrappers focused on official social client lexicons.
+   - **Trade-offs for Thoughtless**:
+     - Pre-packaged SDKs focus almost exclusively on social feed lexicons (`app.bsky.feed.post`, etc.). Custom application records (`thoughtless.task`, `thoughtless.project`) require either running their lexicon codegen toolchain or falling back to generic XRPC calls.
+     - Heavy external SDKs introduce coupling to specific Kotlin compiler versions and Ktor release cycles, increasing risk of version conflict with Compose Multiplatform.
+     - However, `christiandeange/ozone` has valuable reference implementations for ATProto OAuth 2.0 and DPoP that could be leveraged when upgrading from app passwords to full OAuth in future milestones.
+2. **Custom Ktor XRPC Client (Chosen for v1 foundation)**:
+   - Built directly on top of standard `ktor-client` (3.5.2) and `kotlinx-serialization-json` (1.11.0).
    - Native Kotlin Multiplatform support (`commonMain`).
-   - Clean, typed interface for ATProto XRPC endpoints:
+   - Directly maps custom typed records (`thoughtless.task`, `thoughtless.project`) without code-generator plugins.
+   - Clean, typed interface for core ATProto XRPC endpoints:
      - `com.atproto.server.createSession`
      - `com.atproto.repo.createRecord`
      - `com.atproto.repo.getRecord`
      - `com.atproto.repo.listRecords`
      - `com.atproto.repo.deleteRecord`
-   - Zero unnecessary dependencies or generated overhead.
-   - Straightforward unit and integration testing via Ktor's `MockEngine`.
+   - Zero unnecessary dependencies, transparent error handling, and trivial mock testing via Ktor's `MockEngine`.
 
 ---
 

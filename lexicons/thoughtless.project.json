@@ -1,0 +1,40 @@
+{
+  "lexicon": 1,
+  "id": "thoughtless.project",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A project in Thoughtless",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": [
+          "name",
+          "createdAt"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 5000
+          },
+          "color": {
+            "type": "string",
+            "maxLength": 30
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        }
+      }
+    }
+  }
+}

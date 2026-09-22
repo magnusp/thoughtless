@@ -8,6 +8,7 @@ material3 = "1.12.0-alpha03"
 kotlinx-serialization = "1.11.0"
 ktor = "3.5.2"
 arcadedb = "26.9.1"
+flexmark = "0.64.8"
 
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
@@ -30,6 +31,9 @@ ktor-client-content-negotiation = { module = "io.ktor:ktor-client-content-negoti
 ktor-serialization-kotlinx-json = { module = "io.ktor:ktor-serialization-kotlinx-json", version.ref = "ktor" }
 ktor-client-mock = { module = "io.ktor:ktor-client-mock", version.ref = "ktor" }
 arcadedb-engine = { module = "com.arcadedb:arcadedb-engine", version.ref = "arcadedb" }
+flexmark-core = { module = "com.vladsch.flexmark:flexmark", version.ref = "flexmark" }
+flexmark-ext-yaml-front-matter = { module = "com.vladsch.flexmark:flexmark-ext-yaml-front-matter", version.ref = "flexmark" }
+flexmark-ext-wikilink = { module = "com.vladsch.flexmark:flexmark-ext-wikilink", version.ref = "flexmark" }
 
 [plugins]
 composeMultiplatform = { id = "org.jetbrains.compose", version.ref = "composeMultiplatform" }

@@ -152,26 +152,49 @@ class ArcadeDBContextGraphRepository(
         ensureDatabase()
         engine.transaction { db ->
             val fromCursor = db.lookupByKey("ContextNode", "id", edge.fromId)
-            val toCursor = db.lookupByKey("ContextNode", "id", edge.toId)
-            if (fromCursor.hasNext() && toCursor.hasNext()) {
-                val fromVertex = fromCursor.next().asVertex()
-                val toVertex = toCursor.next().asVertex()
-
-                // Check if edge with same ID exists
-                var existingEdge: MutableEdge? = null
-                for (e in fromVertex.getEdges(Vertex.DIRECTION.OUT, edge.relation)) {
-                    if (e.has("id") && e.getString("id") == edge.id) {
-                        existingEdge = e.modify()
-                        break
-                    }
-                }
-
-                val edgeRecord = existingEdge ?: fromVertex.modify().newEdge(edge.relation, toVertex, true)
-                edgeRecord.set("id", edge.id)
-                edgeRecord.set("relation", edge.relation)
-                edgeRecord.set("createdAt", edge.createdAt)
-                edgeRecord.save()
+            val fromVertex = if (fromCursor.hasNext()) {
+                fromCursor.next().asVertex()
+            } else {
+                val placeholder = db.newVertex("ContextNode")
+                placeholder.set("id", edge.fromId)
+                placeholder.set("type", NodeType.ENTITY.name)
+                placeholder.set("label", edge.fromId)
+                placeholder.set("body", "")
+                placeholder.set("createdAt", edge.createdAt)
+                placeholder.set("updatedAt", edge.createdAt)
+                placeholder.save()
+                placeholder
             }
+
+            val toCursor = db.lookupByKey("ContextNode", "id", edge.toId)
+            val toVertex = if (toCursor.hasNext()) {
+                toCursor.next().asVertex()
+            } else {
+                val placeholder = db.newVertex("ContextNode")
+                placeholder.set("id", edge.toId)
+                placeholder.set("type", NodeType.ENTITY.name)
+                placeholder.set("label", edge.toId)
+                placeholder.set("body", "")
+                placeholder.set("createdAt", edge.createdAt)
+                placeholder.set("updatedAt", edge.createdAt)
+                placeholder.save()
+                placeholder
+            }
+
+            // Check if edge with same ID exists
+            var existingEdge: MutableEdge? = null
+            for (e in fromVertex.getEdges(Vertex.DIRECTION.OUT, edge.relation)) {
+                if (e.has("id") && e.getString("id") == edge.id) {
+                    existingEdge = e.modify()
+                    break
+                }
+            }
+
+            val edgeRecord = existingEdge ?: fromVertex.modify().newEdge(edge.relation, toVertex, true)
+            edgeRecord.set("id", edge.id)
+            edgeRecord.set("relation", edge.relation)
+            edgeRecord.set("createdAt", edge.createdAt)
+            edgeRecord.save()
         }
         notifyMutation()
         return edge

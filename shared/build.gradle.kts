@@ -27,6 +27,9 @@ kotlin {
         jvmMain.dependencies {
             implementation(libs.arcadedb.engine)
             implementation(libs.ktor.client.cio)
+            implementation(libs.flexmark.core)
+            implementation(libs.flexmark.ext.yaml.front.matter)
+            implementation(libs.flexmark.ext.wikilink)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

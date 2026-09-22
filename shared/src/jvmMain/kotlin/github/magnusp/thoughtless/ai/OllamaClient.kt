@@ -123,7 +123,16 @@ class OllamaClient(
             messages.add(OllamaChatMessage(role = "system", content = systemPrompt))
         }
         messages.add(OllamaChatMessage(role = "user", content = prompt))
+        return chat(messages, model)
+    }
 
+    /**
+     * Generates chat completion for a multi-turn list of [messages].
+     */
+    suspend fun chat(
+        messages: List<OllamaChatMessage>,
+        model: String = DEFAULT_CHAT_MODEL,
+    ): String? {
         return try {
             val response: OllamaChatResponse = client.post("$baseUrl/api/chat") {
                 contentType(ContentType.Application.Json)

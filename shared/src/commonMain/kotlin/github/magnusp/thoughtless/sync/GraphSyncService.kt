@@ -152,16 +152,7 @@ class GraphSyncService(
 
             val remoteUpdatedAt = parseIsoTimestamp(item.value.updatedAt ?: item.value.createdAt)
             if (localTask == null || remoteUpdatedAt >= localTask.updatedAt) {
-                if (localTask == null) {
-                    taskRepository.createTask(
-                        title = domainTask.title,
-                        description = domainTask.description,
-                        projectId = domainTask.projectId,
-                        priority = domainTask.priority,
-                    )
-                } else {
-                    taskRepository.updateTask(domainTask)
-                }
+                taskRepository.updateTask(domainTask)
                 pulledTasks++
             }
         }

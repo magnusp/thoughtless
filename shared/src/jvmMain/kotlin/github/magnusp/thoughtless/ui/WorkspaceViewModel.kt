@@ -72,7 +72,8 @@ class WorkspaceViewModel(
         )
 
     val documentRoots: StateFlow<List<ContextNode>> = allNodes.map { nodes ->
-        nodes.filter { !it.id.contains("#") }
+        nodes.filter { !it.id.contains("#") && (it.type == NodeType.SPEC || it.filePath != null) }
+            .ifEmpty { nodes.filter { !it.id.contains("#") } }
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.Eagerly,

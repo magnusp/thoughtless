@@ -27,11 +27,12 @@ class ArcadeDBEngine(
 
     private var factory: DatabaseFactory? = null
     private var db: Database? = null
+    val lock = Any()
 
     /**
      * Checks if the database is open.
      */
-    fun isOpen(): Boolean = synchronized(this) {
+    fun isOpen(): Boolean = synchronized(lock) {
         db?.isOpen == true
     }
 
@@ -39,7 +40,7 @@ class ArcadeDBEngine(
      * Returns the active [Database] instance. Throws [IllegalStateException] if the database is not open.
      */
     val database: Database
-        get() = synchronized(this) {
+        get() = synchronized(lock) {
             val current = db
             if (current == null || !current.isOpen) {
                 error("Database at '$databasePath' is not open. Call open() first.")
@@ -50,8 +51,7 @@ class ArcadeDBEngine(
     /**
      * Opens or creates the embedded ArcadeDB database and ensures the schema is initialized.
      */
-    @Synchronized
-    fun open(): Database {
+    fun open(): Database = synchronized(lock) {
         if (db?.isOpen == true) {
             return db!!
         }
@@ -77,9 +77,9 @@ class ArcadeDBEngine(
     }
 
     /**
-     * Executes the given [block] within a database transaction.
+     * Executes the given [block] within a database transaction, synchronized across threads.
      */
-    inline fun <T> transaction(crossinline block: (Database) -> T): T {
+    inline fun <T> transaction(crossinline block: (Database) -> T): T = synchronized(lock) {
         val db = database
         return if (db.isTransactionActive) {
             block(db)
@@ -103,19 +103,22 @@ class ArcadeDBEngine(
     /**
      * Closes the database and its factory.
      */
-    @Synchronized
     override fun close() {
-        try {
-            db?.let {
-                if (it.isOpen) {
-                    it.close()
-                }
-            }
-        } finally {
-            db = null
+        synchronized(lock) {
             try {
-                factory?.close()
+                db?.let {
+                    if (it.isOpen) {
+                        if (it.isTransactionActive) {
+                            try {
+                                it.rollback()
+                            } catch (_: Throwable) {}
+                        }
+                        it.close()
+                    }
+                }
             } finally {
+                db = null
+                factory?.close()
                 factory = null
             }
         }
@@ -198,7 +201,7 @@ class ArcadeDBEngine(
                     .withSimilarity("Cosine")
                     .withIgnoreIfExists(true)
                     .create()
-            } catch (ignored: Exception) {
+            } catch (_: Exception) {
                 // Ignore if vector index cannot be built or already exists
             }
         }

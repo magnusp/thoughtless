@@ -1,2 +1,3 @@
 [tools]
 gh = "latest"
+java = "corretto-27"

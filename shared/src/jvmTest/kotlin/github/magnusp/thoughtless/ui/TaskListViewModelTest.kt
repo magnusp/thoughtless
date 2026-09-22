@@ -1,11 +1,11 @@
 package github.magnusp.thoughtless.ui
 
-import github.magnusp.thoughtless.data.DatabaseFactory
-import github.magnusp.thoughtless.data.JvmDatabaseDriverFactory
-import github.magnusp.thoughtless.data.SqlDelightProjectRepository
-import github.magnusp.thoughtless.data.SqlDelightTaskRepository
+import github.magnusp.thoughtless.data.InMemoryProjectRepository
+import github.magnusp.thoughtless.data.InMemoryTaskRepository
 import github.magnusp.thoughtless.domain.model.TaskPriority
 import github.magnusp.thoughtless.domain.model.TaskStatus
+import github.magnusp.thoughtless.domain.repository.ProjectRepository
+import github.magnusp.thoughtless.domain.repository.TaskRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
@@ -24,17 +24,15 @@ import kotlin.test.assertTrue
 class TaskListViewModelTest {
 
     private val testDispatcher = StandardTestDispatcher()
-    private lateinit var taskRepository: SqlDelightTaskRepository
-    private lateinit var projectRepository: SqlDelightProjectRepository
+    private lateinit var taskRepository: TaskRepository
+    private lateinit var projectRepository: ProjectRepository
     private lateinit var viewModel: TaskListViewModel
 
     @BeforeTest
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
-        val driverFactory = JvmDatabaseDriverFactory.inMemory()
-        val db = DatabaseFactory(driverFactory).createDatabase()
-        taskRepository = SqlDelightTaskRepository(db, testDispatcher)
-        projectRepository = SqlDelightProjectRepository(db, testDispatcher)
+        taskRepository = InMemoryTaskRepository()
+        projectRepository = InMemoryProjectRepository()
         viewModel = TaskListViewModel(taskRepository, projectRepository)
     }
 
@@ -54,7 +52,7 @@ class TaskListViewModelTest {
     fun testCreateTaskAndToggle() = runTest(testDispatcher) {
         viewModel.createTask(
             title = "Ship spike 1",
-            description = "Working compose UI + sqldelight",
+            description = "Working compose UI",
             priority = TaskPriority.HIGH,
         )
         advanceUntilIdle()
@@ -98,42 +96,5 @@ class TaskListViewModelTest {
         advanceUntilIdle()
 
         assertTrue(taskRepository.getTasksByProject(project.id).first().isEmpty())
-    }
-
-    @Test
-    fun testViewModelStatePersistsAcrossRestarts() = runTest(testDispatcher) {
-        val tempFile = java.io.File.createTempFile("thoughtless_vm_test", ".db")
-        try {
-            // First run
-            val driverFactory1 = JvmDatabaseDriverFactory(tempFile.absolutePath)
-            val db1 = DatabaseFactory(driverFactory1).createDatabase()
-            val taskRepo1 = SqlDelightTaskRepository(db1, testDispatcher)
-            val projectRepo1 = SqlDelightProjectRepository(db1, testDispatcher)
-            val vm1 = TaskListViewModel(taskRepo1, projectRepo1)
-
-            vm1.createTask(
-                title = "Must persist across restart",
-                description = "Persisted through ViewModel",
-                priority = TaskPriority.URGENT,
-            )
-            advanceUntilIdle()
-
-            // Simulate restart with fresh instances
-            val driverFactory2 = JvmDatabaseDriverFactory(tempFile.absolutePath)
-            val db2 = DatabaseFactory(driverFactory2).createDatabase()
-            val taskRepo2 = SqlDelightTaskRepository(db2, testDispatcher)
-            val projectRepo2 = SqlDelightProjectRepository(db2, testDispatcher)
-            val vm2 = TaskListViewModel(taskRepo2, projectRepo2)
-
-            advanceUntilIdle()
-
-            val persistedTasks = taskRepo2.getTasks().first()
-            assertEquals(1, persistedTasks.size)
-            assertEquals("Must persist across restart", persistedTasks.first().title)
-            assertEquals("Persisted through ViewModel", persistedTasks.first().description)
-            assertEquals(TaskPriority.URGENT, persistedTasks.first().priority)
-        } finally {
-            if (tempFile.exists()) tempFile.delete()
-        }
     }
 }

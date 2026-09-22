@@ -1,16 +1,13 @@
 package github.magnusp.thoughtless.ui
 
-import github.magnusp.thoughtless.data.DatabaseDriverFactory
-import github.magnusp.thoughtless.data.DatabaseFactory
-import github.magnusp.thoughtless.data.SqlDelightProjectRepository
-import github.magnusp.thoughtless.data.SqlDelightTaskRepository
-import github.magnusp.thoughtless.data.getDefaultDatabaseDriverFactory
+import github.magnusp.thoughtless.data.InMemoryProjectRepository
+import github.magnusp.thoughtless.data.InMemoryTaskRepository
+import github.magnusp.thoughtless.domain.repository.ProjectRepository
+import github.magnusp.thoughtless.domain.repository.TaskRepository
 
 class AppDependencies(
-    driverFactory: DatabaseDriverFactory = getDefaultDatabaseDriverFactory()
+    val taskRepository: TaskRepository = InMemoryTaskRepository(),
+    val projectRepository: ProjectRepository = InMemoryProjectRepository(),
 ) {
-    val database = DatabaseFactory(driverFactory).createDatabase()
-    val taskRepository = SqlDelightTaskRepository(database)
-    val projectRepository = SqlDelightProjectRepository(database)
     val viewModel = TaskListViewModel(taskRepository, projectRepository)
 }

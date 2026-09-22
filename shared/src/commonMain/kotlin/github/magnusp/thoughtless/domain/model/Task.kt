@@ -36,4 +36,32 @@ data class Task(
     val createdAt: Long,
     val updatedAt: Long,
     val completedAt: Long? = null,
+    val type: TaskType = TaskType.TASK,
+    val contextFiles: List<String> = emptyList(),
+    val targetFile: String? = null,
+    val acceptanceCriteria: List<String> = emptyList(),
+    val dependsOn: List<String> = emptyList(),
+    val milestoneId: String? = null,
+    val agentPermissions: AgentPermissions? = null,
+    val agentStatus: AgentTaskStatus = AgentTaskStatus.PENDING,
 )
+
+enum class TaskType {
+    TASK,
+    SPIKE,
+    EXPLORATION,
+    RFC,
+}
+
+enum class AgentTaskStatus {
+    PENDING,
+    AGENT_RUNNING,
+    AWAITING_REVIEW,
+    MERGED,
+}
+
+data class AgentPermissions(
+    val canInstallPackages: Boolean = false,
+    val allowedCommands: List<String> = emptyList(),
+)
+

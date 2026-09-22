@@ -178,24 +178,26 @@ class ArcadeDBTaskRepository(
         ensureDatabase()
         engine.transaction { db ->
             val cursor = db.lookupByKey("Task", "id", task.id)
-            if (cursor.hasNext()) {
-                val vertex = cursor.next().asVertex().modify()
-                val oldProjectId = vertex.getString("projectId")
-                setVertexProperties(vertex, updated)
-                vertex.save()
+            val vertex = if (cursor.hasNext()) {
+                cursor.next().asVertex().modify()
+            } else {
+                db.newVertex("Task")
+            }
+            val oldProjectId = if (vertex.has("projectId")) vertex.getString("projectId") else null
+            setVertexProperties(vertex, updated)
+            vertex.save()
 
-                if (oldProjectId != updated.projectId) {
-                    // Remove old HAS_TASK edge if present
-                    for (edge in vertex.getEdges(Vertex.DIRECTION.IN, "HAS_TASK")) {
-                        edge.delete()
-                    }
-                    // Add new HAS_TASK edge if new projectId is set
-                    if (updated.projectId != null) {
-                        val projectCursor = db.lookupByKey("Project", "id", updated.projectId)
-                        if (projectCursor.hasNext()) {
-                            val projectVertex = projectCursor.next().asVertex().modify()
-                            projectVertex.newEdge("HAS_TASK", vertex, true)
-                        }
+            if (oldProjectId != updated.projectId) {
+                // Remove old HAS_TASK edge if present
+                for (edge in vertex.getEdges(Vertex.DIRECTION.IN, "HAS_TASK")) {
+                    edge.delete()
+                }
+                // Add new HAS_TASK edge if new projectId is set
+                if (updated.projectId != null) {
+                    val projectCursor = db.lookupByKey("Project", "id", updated.projectId)
+                    if (projectCursor.hasNext()) {
+                        val projectVertex = projectCursor.next().asVertex().modify()
+                        projectVertex.newEdge("HAS_TASK", vertex, true)
                     }
                 }
             }

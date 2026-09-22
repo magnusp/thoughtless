@@ -12,6 +12,6 @@ fun main() = application {
         title = "thoughtless — Local-first Task Tracker",
         state = windowState,
     ) {
-        App()
+        github.magnusp.thoughtless.ui.DesktopApp()
     }
 }

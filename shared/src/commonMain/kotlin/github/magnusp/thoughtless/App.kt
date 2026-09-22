@@ -89,48 +89,72 @@ fun App(
             val projects by viewModel.projects.collectAsState()
             val selectedProjectId by viewModel.selectedProjectId.collectAsState()
 
-            Row(modifier = Modifier.fillMaxSize()) {
-                Sidebar(
-                    projects = projects,
-                    selectedProjectId = selectedProjectId,
-                    onSelectProject = viewModel::selectProject,
-                    onCreateProject = { name, color ->
-                        viewModel.createProject(name = name, color = color)
-                    },
-                    onDeleteProject = viewModel::deleteProject,
-                    modifier = Modifier
-                        .width(280.dp)
-                        .fillMaxHeight()
-                        .background(MaterialTheme.colorScheme.surface)
-                        .padding(16.dp),
-                )
-
-                VerticalDivider(
-                    modifier = Modifier.fillMaxHeight(),
-                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
-                )
-
-                MainContent(
-                    tasks = tasks,
-                    projects = projects,
-                    selectedProjectId = selectedProjectId,
-                    onToggleTask = viewModel::toggleTaskCompletion,
-                    onDeleteTask = viewModel::deleteTask,
-                    onAddTask = { title, description, priority ->
-                        viewModel.createTask(
-                            title = title,
-                            description = description,
-                            projectId = selectedProjectId,
-                            priority = priority,
-                        )
-                    },
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
-                        .padding(24.dp),
-                )
-            }
+            AppContent(
+                tasks = tasks,
+                projects = projects,
+                selectedProjectId = selectedProjectId,
+                onSelectProject = viewModel::selectProject,
+                onCreateProject = { name, color -> viewModel.createProject(name = name, color = color) },
+                onDeleteProject = viewModel::deleteProject,
+                onToggleTask = viewModel::toggleTaskCompletion,
+                onDeleteTask = viewModel::deleteTask,
+                onAddTask = { title, description, priority ->
+                    viewModel.createTask(
+                        title = title,
+                        description = description,
+                        projectId = selectedProjectId,
+                        priority = priority,
+                    )
+                },
+            )
         }
+    }
+}
+
+@Composable
+fun AppContent(
+    tasks: List<Task>,
+    projects: List<Project>,
+    selectedProjectId: String?,
+    onSelectProject: (String?) -> Unit,
+    onCreateProject: (name: String, color: String?) -> Unit,
+    onDeleteProject: (String) -> Unit,
+    onToggleTask: (Task) -> Unit,
+    onDeleteTask: (String) -> Unit,
+    onAddTask: (title: String, description: String?, priority: TaskPriority) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(modifier = modifier.fillMaxSize()) {
+        Sidebar(
+            projects = projects,
+            selectedProjectId = selectedProjectId,
+            onSelectProject = onSelectProject,
+            onCreateProject = onCreateProject,
+            onDeleteProject = onDeleteProject,
+            modifier = Modifier
+                .width(280.dp)
+                .fillMaxHeight()
+                .background(MaterialTheme.colorScheme.surface)
+                .padding(16.dp),
+        )
+
+        VerticalDivider(
+            modifier = Modifier.fillMaxHeight(),
+            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
+        )
+
+        MainContent(
+            tasks = tasks,
+            projects = projects,
+            selectedProjectId = selectedProjectId,
+            onToggleTask = onToggleTask,
+            onDeleteTask = onDeleteTask,
+            onAddTask = onAddTask,
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight()
+                .padding(24.dp),
+        )
     }
 }
 

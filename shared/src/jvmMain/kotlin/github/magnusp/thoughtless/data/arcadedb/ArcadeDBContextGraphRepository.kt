@@ -166,7 +166,7 @@ class ArcadeDBContextGraphRepository(
                     }
                 }
 
-                val edgeRecord = existingEdge ?: fromVertex.newEdge(edge.relation, toVertex, true)
+                val edgeRecord = existingEdge ?: fromVertex.modify().newEdge(edge.relation, toVertex, true)
                 edgeRecord.set("id", edge.id)
                 edgeRecord.set("relation", edge.relation)
                 edgeRecord.set("createdAt", edge.createdAt)
@@ -195,19 +195,21 @@ class ArcadeDBContextGraphRepository(
     }
 
     override suspend fun findRelated(nodeId: String, hops: Int): List<ContextNode> {
-        val db = ensureDatabase()
+        ensureDatabase()
         val validHops = if (hops < 1) 1 else hops
         val query = "MATCH (n:ContextNode {id: \$id})-[*1..$validHops]-(m:ContextNode) RETURN DISTINCT m"
-        val resultSet = db.query("cypher", query, mapOf("id" to nodeId))
-        val result = mutableListOf<ContextNode>()
-        while (resultSet.hasNext()) {
-            val row = resultSet.next()
-            val vertex = row.getProperty<Vertex>("m")
-            if (vertex != null) {
-                result.add(vertexToNode(vertex))
+        return engine.transaction { db ->
+            val resultSet = db.query("cypher", query, mapOf("id" to nodeId))
+            val result = mutableListOf<ContextNode>()
+            while (resultSet.hasNext()) {
+                val row = resultSet.next()
+                val vertex = row.getProperty<Vertex>("m")
+                if (vertex != null) {
+                    result.add(vertexToNode(vertex))
+                }
             }
+            result
         }
-        return result
     }
 
     override suspend fun findSimilar(embedding: FloatArray, topK: Int): List<ContextNode> {
@@ -246,33 +248,37 @@ class ArcadeDBContextGraphRepository(
     }
 
     override suspend fun getBacklinks(nodeId: String): List<ContextNode> {
-        val db = ensureDatabase()
+        ensureDatabase()
         val query = "MATCH (m:ContextNode)-[r]->(n:ContextNode {id: \$id}) RETURN DISTINCT m"
-        val resultSet = db.query("cypher", query, mapOf("id" to nodeId))
-        val result = mutableListOf<ContextNode>()
-        while (resultSet.hasNext()) {
-            val row = resultSet.next()
-            val vertex = row.getProperty<Vertex>("m")
-            if (vertex != null) {
-                result.add(vertexToNode(vertex))
+        return engine.transaction { db ->
+            val resultSet = db.query("cypher", query, mapOf("id" to nodeId))
+            val result = mutableListOf<ContextNode>()
+            while (resultSet.hasNext()) {
+                val row = resultSet.next()
+                val vertex = row.getProperty<Vertex>("m")
+                if (vertex != null) {
+                    result.add(vertexToNode(vertex))
+                }
             }
+            result
         }
-        return result
     }
 
     override suspend fun analyzeImpact(nodeId: String): List<ContextNode> {
-        val db = ensureDatabase()
+        ensureDatabase()
         val query = "MATCH (n:ContextNode {id: \$id})<-[:IMPLEMENTS|MUTATES|REFERENCES*1..10]-(m:ContextNode) RETURN DISTINCT m"
-        val resultSet = db.query("cypher", query, mapOf("id" to nodeId))
-        val result = mutableListOf<ContextNode>()
-        while (resultSet.hasNext()) {
-            val row = resultSet.next()
-            val vertex = row.getProperty<Vertex>("m")
-            if (vertex != null) {
-                result.add(vertexToNode(vertex))
+        return engine.transaction { db ->
+            val resultSet = db.query("cypher", query, mapOf("id" to nodeId))
+            val result = mutableListOf<ContextNode>()
+            while (resultSet.hasNext()) {
+                val row = resultSet.next()
+                val vertex = row.getProperty<Vertex>("m")
+                if (vertex != null) {
+                    result.add(vertexToNode(vertex))
+                }
             }
+            result
         }
-        return result
     }
 
     private fun setNodeProperties(vertex: MutableVertex, node: ContextNode) {

@@ -1,0 +1,57 @@
+{
+  "lexicon": 1,
+  "id": "thoughtless.contextNode",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A node in the Thoughtless architecture and context graph",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": [
+          "nodeId",
+          "type",
+          "label",
+          "body",
+          "createdAt"
+        ],
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "description": "Unique domain identifier of the node (e.g. doc-slug#heading)"
+          },
+          "type": {
+            "type": "string",
+            "knownValues": [
+              "REQUIREMENT",
+              "ENTITY",
+              "ENDPOINT",
+              "TABLE",
+              "SPEC",
+              "EXPLORATION"
+            ]
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "body": {
+            "type": "string",
+            "maxLength": 100000
+          },
+          "filePath": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        }
+      }
+    }
+  }
+}

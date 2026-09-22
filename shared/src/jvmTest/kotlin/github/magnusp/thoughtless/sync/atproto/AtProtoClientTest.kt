@@ -96,6 +96,32 @@ class AtProtoClientTest {
                     }
                 }
 
+                // Repo: putRecord
+                path == "/xrpc/com.atproto.repo.putRecord" && method == HttpMethod.Post -> {
+                    if (authHeader != "Bearer jwt_access_token_123") {
+                        respond("""{"error":"AuthRequired","message":"Authentication required"}""", HttpStatusCode.Unauthorized, jsonHeaders)
+                    } else {
+                        val bodyText = readBodyText(request.body)
+                        val jsonElement = Json.parseToJsonElement(bodyText).jsonObject
+                        val collection = jsonElement["collection"]?.jsonPrimitive?.contentOrNull ?: ""
+                        val rkey = jsonElement["rkey"]?.jsonPrimitive?.contentOrNull ?: "rkey_put"
+                        val recordObj = jsonElement["record"]?.jsonObject ?: JsonObject(emptyMap())
+
+                        val recordKey = "$collection/$rkey"
+                        recordsDb[recordKey] = recordObj.toString()
+
+                        val resp = PutRecordResponse(
+                            uri = "at://did:plc:testuser123456/$collection/$rkey",
+                            cid = "bafyreihash1234567890",
+                        )
+                        respond(
+                            content = Json.encodeToString(PutRecordResponse.serializer(), resp),
+                            status = HttpStatusCode.OK,
+                            headers = jsonHeaders,
+                        )
+                    }
+                }
+
                 // Repo: getRecord
                 path == "/xrpc/com.atproto.repo.getRecord" && method == HttpMethod.Get -> {
                     val collection = request.url.parameters["collection"] ?: ""
@@ -216,6 +242,60 @@ class AtProtoClientTest {
         assertEquals("Connect to ATProto PDS", retrievedTask.title)
         assertEquals(TaskStatus.IN_PROGRESS, retrievedTask.status)
         assertEquals(TaskPriority.HIGH, retrievedTask.priority)
+    }
+
+    @Test
+    fun testPutAndListSpecAndContextRecords() = runTest {
+        client.createSession("magnus.bsky.social", "valid_password")
+
+        val specRecord = SpecRecord(
+            projectId = "p1",
+            title = "Spec 1",
+            systemSpec = "Architecture definition",
+            createdAt = "2026-09-23T00:00:00Z"
+        )
+        val putSpec = client.putSpecRecord("spec-1", specRecord)
+        assertEquals("at://did:plc:testuser123456/thoughtless.spec/spec-1", putSpec.uri)
+
+        val fetchedSpec = client.getSpecRecord("spec-1")
+        assertEquals("Spec 1", fetchedSpec.value.title)
+
+        val nodeRecord = ContextNodeRecord(
+            nodeId = "spec-1#req1",
+            nodeType = "REQUIREMENT",
+            label = "Auth Requirement",
+            body = "Must use OAuth",
+            createdAt = "2026-09-23T00:00:00Z"
+        )
+        client.putContextNodeRecord("node-1", nodeRecord)
+
+        val edgeRecord = ContextEdgeRecord(
+            edgeId = "edge-1",
+            fromId = "spec-1#req1",
+            toId = "endpoint-auth",
+            relation = "implements",
+            createdAt = "2026-09-23T00:00:00Z"
+        )
+        client.putContextEdgeRecord("edge-1", edgeRecord)
+
+        val agentTaskRecord = AgentTaskRecord(
+            title = "Agent Task 1",
+            agentStatus = "PENDING",
+            createdAt = "2026-09-23T00:00:00Z"
+        )
+        client.putAgentTaskRecord("atask-1", agentTaskRecord)
+
+        val nodesList = client.listContextNodeRecords()
+        assertEquals(1, nodesList.records.size)
+        assertEquals("Auth Requirement", nodesList.records.first().value.label)
+
+        val edgesList = client.listContextEdgeRecords()
+        assertEquals(1, edgesList.records.size)
+        assertEquals("implements", edgesList.records.first().value.relation)
+
+        val agentTasksList = client.listAgentTaskRecords()
+        assertEquals(1, agentTasksList.records.size)
+        assertEquals("Agent Task 1", agentTasksList.records.first().value.title)
     }
 
     @Test

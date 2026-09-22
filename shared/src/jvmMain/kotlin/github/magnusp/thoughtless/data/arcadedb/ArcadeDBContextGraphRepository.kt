@@ -181,16 +181,19 @@ class ArcadeDBContextGraphRepository(
                 placeholder
             }
 
+            val normalizedRelation = edge.relation.uppercase()
+            db.schema.getOrCreateEdgeType(normalizedRelation)
+
             // Check if edge with same ID exists
             var existingEdge: MutableEdge? = null
-            for (e in fromVertex.getEdges(Vertex.DIRECTION.OUT, edge.relation)) {
+            for (e in fromVertex.getEdges(Vertex.DIRECTION.OUT, normalizedRelation)) {
                 if (e.has("id") && e.getString("id") == edge.id) {
                     existingEdge = e.modify()
                     break
                 }
             }
 
-            val edgeRecord = existingEdge ?: fromVertex.modify().newEdge(edge.relation, toVertex, true)
+            val edgeRecord = existingEdge ?: fromVertex.modify().newEdge(normalizedRelation, toVertex, true)
             edgeRecord.set("id", edge.id)
             edgeRecord.set("relation", edge.relation)
             edgeRecord.set("createdAt", edge.createdAt)

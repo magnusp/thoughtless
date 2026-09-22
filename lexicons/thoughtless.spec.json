@@ -1,0 +1,52 @@
+{
+  "lexicon": 1,
+  "id": "thoughtless.spec",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A system specification and RFC document in Thoughtless",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": [
+          "projectId",
+          "title",
+          "systemSpec",
+          "createdAt"
+        ],
+        "properties": {
+          "projectId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "systemSpec": {
+            "type": "string",
+            "maxLength": 100000
+          },
+          "nonGoals": {
+            "type": "string",
+            "maxLength": 50000
+          },
+          "rfcDocument": {
+            "type": "string",
+            "maxLength": 100000
+          },
+          "frozenAt": {
+            "type": "integer"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        }
+      }
+    }
+  }
+}

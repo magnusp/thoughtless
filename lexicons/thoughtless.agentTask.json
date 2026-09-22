@@ -1,0 +1,70 @@
+{
+  "lexicon": 1,
+  "id": "thoughtless.agentTask",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "An autonomous agent task item in Thoughtless",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": [
+          "title",
+          "agentStatus",
+          "createdAt"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 10000
+          },
+          "agentStatus": {
+            "type": "string",
+            "knownValues": [
+              "PENDING",
+              "AGENT_RUNNING",
+              "AWAITING_REVIEW",
+              "MERGED"
+            ]
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "targetFile": {
+            "type": "string"
+          },
+          "contextFiles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "dependsOn": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "acceptanceCriteria": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        }
+      }
+    }
+  }
+}

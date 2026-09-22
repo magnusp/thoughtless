@@ -1,0 +1,39 @@
+{
+  "lexicon": 1,
+  "id": "thoughtless.contextEdge",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A directed edge connecting two context nodes in Thoughtless",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": [
+          "edgeId",
+          "fromId",
+          "toId",
+          "relation",
+          "createdAt"
+        ],
+        "properties": {
+          "edgeId": {
+            "type": "string"
+          },
+          "fromId": {
+            "type": "string"
+          },
+          "toId": {
+            "type": "string"
+          },
+          "relation": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        }
+      }
+    }
+  }
+}

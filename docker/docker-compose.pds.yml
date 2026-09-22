@@ -1,0 +1,23 @@
+services:
+  pds:
+    image: ghcr.io/bluesky-social/pds:latest
+    container_name: thoughtless-pds
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - PDS_HOSTNAME=localhost
+      - PDS_PORT=3000
+      - PDS_DATA_DIRECTORY=/pds
+      - PDS_BLOBSTORE_DISK_LOCATION=/pds/blocks
+      - PDS_JWT_SECRET=thoughtless-local-dev-jwt-secret-very-secure-32chars
+      - PDS_ADMIN_PASSWORD=adminpassword123
+      - PDS_PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      - PDS_INVITE_REQUIRED=false
+      - PDS_RECOVERY_KEY_K256_PRIVATE_KEY_HEX=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      - LOG_ENABLED=true
+    volumes:
+      - pds_data:/pds
+
+volumes:
+  pds_data:

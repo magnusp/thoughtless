@@ -92,3 +92,85 @@ data class ProjectRecord(
     val createdAt: String,
     val updatedAt: String? = null,
 )
+
+@Serializable
+data class SpecRecord(
+    @SerialName("\$type")
+    val type: String = "thoughtless.spec",
+    val projectId: String,
+    val title: String,
+    val systemSpec: String,
+    val nonGoals: String? = null,
+    val rfcDocument: String? = null,
+    val frozenAt: Long? = null,
+    val createdAt: String,
+    val updatedAt: String? = null,
+)
+
+@Serializable
+data class ContextNodeRecord(
+    @SerialName("\$type")
+    val type: String = "thoughtless.contextNode",
+    val nodeId: String,
+    val nodeType: String,
+    val label: String,
+    val body: String,
+    val filePath: String? = null,
+    val createdAt: String,
+    val updatedAt: String? = null,
+)
+
+@Serializable
+data class ContextEdgeRecord(
+    @SerialName("\$type")
+    val type: String = "thoughtless.contextEdge",
+    val edgeId: String,
+    val fromId: String,
+    val toId: String,
+    val relation: String,
+    val createdAt: String,
+)
+
+@Serializable
+data class AgentTaskRecord(
+    @SerialName("\$type")
+    val type: String = "thoughtless.agentTask",
+    val title: String,
+    val description: String? = null,
+    val agentStatus: String = "PENDING",
+    val projectId: String? = null,
+    val targetFile: String? = null,
+    val contextFiles: List<String> = emptyList(),
+    val dependsOn: List<String> = emptyList(),
+    val acceptanceCriteria: List<String> = emptyList(),
+    val createdAt: String,
+    val updatedAt: String? = null,
+)
+
+@Serializable
+data class MilestoneRecord(
+    @SerialName("\$type")
+    val type: String = "thoughtless.milestone",
+    val projectId: String,
+    val title: String,
+    val description: String? = null,
+    val targetDate: Long? = null,
+    val createdAt: String,
+    val updatedAt: String? = null,
+)
+
+@Serializable
+data class PutRecordRequest<T>(
+    val repo: String,
+    val collection: String,
+    val rkey: String,
+    val validate: Boolean = true,
+    val record: T,
+)
+
+@Serializable
+data class PutRecordResponse(
+    val uri: String,
+    val cid: String,
+    val commit: CommitMeta? = null,
+)

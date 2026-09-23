@@ -15,6 +15,7 @@ services:
       - PDS_PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
       - PDS_INVITE_REQUIRED=false
       - PDS_RECOVERY_KEY_K256_PRIVATE_KEY_HEX=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      - PDS_DEV_MODE=true
       - LOG_ENABLED=true
     volumes:
       - pds_data:/pds

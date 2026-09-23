@@ -100,6 +100,26 @@ class ArcadeDBTaskRepositoryTest {
         assertEquals(listOf("gradle test"), permissions.allowedCommands)
         assertEquals(AgentTaskStatus.MERGED, updatedTask.agentStatus)
 
+        // Test updateAgentScratchpad
+        val scratchpad = github.magnusp.thoughtless.domain.model.AgentScratchpad(
+            currentStep = "Refactoring query parser",
+            notes = "Running hypotheses on DAG cycle checks",
+            touchedFiles = listOf("Parser.kt", "DAG.kt"),
+            completedCriteria = listOf("Passes initial tests"),
+            lastUpdated = 1800000005000L,
+        )
+        taskRepo.updateAgentScratchpad(created.id, scratchpad)
+
+        val taskWithScratchpad = taskRepo.getTaskById(created.id).first()
+        assertNotNull(taskWithScratchpad)
+        val readScratchpad = taskWithScratchpad.agentScratchpad
+        assertNotNull(readScratchpad)
+        assertEquals("Refactoring query parser", readScratchpad.currentStep)
+        assertEquals("Running hypotheses on DAG cycle checks", readScratchpad.notes)
+        assertEquals(listOf("Parser.kt", "DAG.kt"), readScratchpad.touchedFiles)
+        assertEquals(listOf("Passes initial tests"), readScratchpad.completedCriteria)
+        assertEquals(1800000005000L, readScratchpad.lastUpdated)
+
         // Delete task
         taskRepo.deleteTask(created.id)
         val deleted = taskRepo.getTaskById(created.id).first()

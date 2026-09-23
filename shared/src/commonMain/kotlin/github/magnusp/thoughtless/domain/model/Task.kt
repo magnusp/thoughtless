@@ -44,6 +44,7 @@ data class Task(
     val milestoneId: String? = null,
     val agentPermissions: AgentPermissions? = null,
     val agentStatus: AgentTaskStatus = AgentTaskStatus.PENDING,
+    val agentScratchpad: AgentScratchpad? = null,
 )
 
 enum class TaskType {
@@ -63,5 +64,13 @@ enum class AgentTaskStatus {
 data class AgentPermissions(
     val canInstallPackages: Boolean = false,
     val allowedCommands: List<String> = emptyList(),
+)
+
+data class AgentScratchpad(
+    val currentStep: String? = null,
+    val notes: String? = null,
+    val touchedFiles: List<String> = emptyList(),
+    val completedCriteria: List<String> = emptyList(),
+    val lastUpdated: Long = 0L,
 )
 

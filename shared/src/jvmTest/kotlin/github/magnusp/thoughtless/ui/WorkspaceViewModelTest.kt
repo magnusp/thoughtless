@@ -3,6 +3,7 @@ package github.magnusp.thoughtless.ui
 import github.magnusp.thoughtless.data.arcadedb.ArcadeDBContextGraphRepository
 import github.magnusp.thoughtless.data.arcadedb.ArcadeDBEngine
 import github.magnusp.thoughtless.data.arcadedb.ArcadeDBProjectRepository
+import github.magnusp.thoughtless.data.arcadedb.ArcadeDBTaskProposalRepository
 import github.magnusp.thoughtless.data.arcadedb.ArcadeDBTaskRepository
 import github.magnusp.thoughtless.domain.model.AgentTaskStatus
 import github.magnusp.thoughtless.domain.model.NodeType
@@ -29,6 +30,8 @@ class WorkspaceViewModelTest {
     private lateinit var taskRepo: ArcadeDBTaskRepository
     private lateinit var projectRepo: ArcadeDBProjectRepository
     private lateinit var graphRepo: ArcadeDBContextGraphRepository
+    private lateinit var proposalRepo: ArcadeDBTaskProposalRepository
+    private lateinit var proposalService: github.magnusp.thoughtless.service.TaskProposalService
     private lateinit var markdownService: MarkdownIngestionService
     private lateinit var dagService: DAGDecomposerService
     private lateinit var viewModel: WorkspaceViewModel
@@ -40,6 +43,8 @@ class WorkspaceViewModelTest {
         taskRepo = ArcadeDBTaskRepository(engine)
         projectRepo = ArcadeDBProjectRepository(engine)
         graphRepo = ArcadeDBContextGraphRepository(engine)
+        proposalRepo = ArcadeDBTaskProposalRepository(engine)
+        proposalService = github.magnusp.thoughtless.service.TaskProposalService(proposalRepo, taskRepo, graphRepo)
         markdownService = MarkdownIngestionService(graphRepo)
         dagService = DAGDecomposerService(taskRepo, graphRepo)
 
@@ -49,6 +54,8 @@ class WorkspaceViewModelTest {
             contextGraphRepository = graphRepo,
             markdownIngestionService = markdownService,
             dagDecomposerService = dagService,
+            taskProposalRepository = proposalRepo,
+            taskProposalService = proposalService,
         )
     }
 
@@ -130,5 +137,49 @@ class WorkspaceViewModelTest {
         assertNotNull(exportedJson)
         assertTrue(exportedJson.contains(t1.id))
         assertTrue(exportedJson.contains(t2.id))
+    }
+
+    @Test
+    fun testProposalsAndScratchpadIntegration() = runBlocking {
+        // 1. Propose task
+        val proposal = proposalService.proposeTask(
+            title = "Discovered Memory Leak in Cache",
+            rationale = "Cache lacks eviction policy",
+            suggestedTargetFile = "Cache.kt",
+            acceptanceCriteria = listOf("Evicts LRU entries"),
+        )
+        kotlinx.coroutines.delay(100)
+
+        val pending = viewModel.pendingProposals.value
+        assertEquals(1, pending.size)
+        assertEquals(proposal.id, pending.first().id)
+
+        // 2. Accept proposal via ViewModel
+        viewModel.acceptProposal(proposal.id)
+        kotlinx.coroutines.delay(150)
+
+        assertEquals(0, viewModel.pendingProposals.value.size)
+        val allTasks = viewModel.tasks.value
+        assertEquals(1, allTasks.size)
+        val createdTask = allTasks.first()
+        assertEquals("Discovered Memory Leak in Cache", createdTask.title)
+
+        // 3. Update task progress / scratchpad
+        val scratchpad = github.magnusp.thoughtless.domain.model.AgentScratchpad(
+            currentStep = "Implementing LRU map wrapper",
+            notes = "Using LinkedHashMap with accessOrder = true",
+            touchedFiles = listOf("Cache.kt"),
+            completedCriteria = listOf("Evicts LRU entries"),
+            lastUpdated = 1700000010000L,
+        )
+        viewModel.updateTaskProgress(createdTask.id, scratchpad)
+        kotlinx.coroutines.delay(100)
+
+        val updatedTask = taskRepo.getTaskById(createdTask.id).first()
+        assertNotNull(updatedTask)
+        val savedScratchpad = updatedTask.agentScratchpad
+        assertNotNull(savedScratchpad)
+        assertEquals("Implementing LRU map wrapper", savedScratchpad.currentStep)
+        assertEquals(listOf("Cache.kt"), savedScratchpad.touchedFiles)
     }
 }

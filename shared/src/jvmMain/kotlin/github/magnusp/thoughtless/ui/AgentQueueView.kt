@@ -1,7 +1,9 @@
 package github.magnusp.thoughtless.ui
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -15,8 +17,10 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import github.magnusp.thoughtless.domain.model.AgentScratchpad
 import github.magnusp.thoughtless.domain.model.AgentTaskStatus
 import github.magnusp.thoughtless.domain.model.Task
+import github.magnusp.thoughtless.domain.model.TaskProposal
 import kotlinx.coroutines.launch
 
 @Composable
@@ -26,6 +30,7 @@ fun AgentQueueView(
 ) {
     val executionTiers by viewModel.executionTiers.collectAsState()
     val allTasks by viewModel.tasks.collectAsState()
+    val pendingProposals by viewModel.pendingProposals.collectAsState()
     val scope = rememberCoroutineScope()
     var exportJsonDialogContent by remember { mutableStateOf<String?>(null) }
 
@@ -48,7 +53,7 @@ fun AgentQueueView(
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
-                    text = "Topologically tiered DAG tasks with approval workflow",
+                    text = "Topologically tiered DAG tasks with live agent scratchpad & discovered proposal triage",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -71,22 +76,36 @@ fun AgentQueueView(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        if (allTasks.isEmpty()) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "No tasks in the graph. Decompose a Spec to populate the queue.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // 1. Discovered Work / Proposals Triage Section
+            if (pendingProposals.isNotEmpty()) {
+                item {
+                    ProposalsTriageSection(
+                        proposals = pendingProposals,
+                        onAccept = { proposal -> viewModel.acceptProposal(proposal.id) },
+                        onReject = { proposal -> viewModel.rejectProposal(proposal.id) }
+                    )
+                }
             }
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
+
+            // 2. Execution Tiers
+            if (allTasks.isEmpty() && pendingProposals.isEmpty()) {
+                item {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 48.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "No tasks or proposals in the graph. Decompose a Spec to populate the queue.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            } else {
                 items(executionTiers.indices.toList()) { tierIndex ->
                     val tierTasks = executionTiers[tierIndex]
                     TierCard(
@@ -129,6 +148,161 @@ fun AgentQueueView(
                 }
             }
         )
+    }
+}
+
+@Composable
+private fun ProposalsTriageSection(
+    proposals: List<TaskProposal>,
+    onAccept: (TaskProposal) -> Unit,
+    onReject: (TaskProposal) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.25f)
+        )
+    ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "💡 Discovered Work & Proposals",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Badge(
+                        containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+                    ) {
+                        Text(
+                            text = "${proposals.size} awaiting triage",
+                            fontSize = 11.sp,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                proposals.forEach { proposal ->
+                    ProposalRowCard(
+                        proposal = proposal,
+                        onAccept = { onAccept(proposal) },
+                        onReject = { onReject(proposal) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProposalRowCard(
+    proposal: TaskProposal,
+    onAccept: () -> Unit,
+    onReject: () -> Unit
+) {
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.surface,
+        shadowElevation = 1.dp,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = proposal.title,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Badge(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                    ) {
+                        Text(
+                            text = proposal.type.name,
+                            fontSize = 10.sp,
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                        )
+                    }
+                }
+
+                if (proposal.rationale.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Rationale: ${proposal.rationale}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2
+                    )
+                }
+
+                if (proposal.suggestedTargetFile != null || proposal.suggestedContextFiles.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    val files = (listOfNotNull(proposal.suggestedTargetFile) + proposal.suggestedContextFiles).distinct()
+                    Text(
+                        text = "Suggested Files: ${files.joinToString(", ")}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.outline,
+                        maxLines = 1
+                    )
+                }
+
+                if (proposal.sourceTaskId != null) {
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "Discovered during task: ${proposal.sourceTaskId}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.secondary
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            // Actions: Accept / Reject
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                FilledTonalButton(
+                    onClick = onAccept,
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = Color(0xFF4CAF50).copy(alpha = 0.2f),
+                        contentColor = Color(0xFF2E7D32)
+                    ),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                    modifier = Modifier.height(32.dp)
+                ) {
+                    Text("Accept (DAG)", fontSize = 12.sp)
+                }
+
+                OutlinedButton(
+                    onClick = onReject,
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    ),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                    modifier = Modifier.height(32.dp)
+                ) {
+                    Text("Dismiss", fontSize = 12.sp)
+                }
+            }
+        }
     }
 }
 
@@ -191,76 +365,162 @@ private fun TaskRowCard(
     onApprove: () -> Unit,
     onReject: () -> Unit
 ) {
+    var expandedScratchpad by remember { mutableStateOf(false) }
+    val scratchpad = task.agentScratchpad
+
     Surface(
         shape = RoundedCornerShape(8.dp),
         color = MaterialTheme.colorScheme.surface,
         shadowElevation = 1.dp,
         modifier = Modifier.fillMaxWidth()
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = task.title,
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    TaskStatusBadge(status = task.agentStatus)
+        Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = task.title,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        TaskStatusBadge(status = task.agentStatus)
+                        
+                        if (scratchpad != null) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+                                modifier = Modifier.clickable { expandedScratchpad = !expandedScratchpad }
+                            ) {
+                                Text(
+                                    text = if (expandedScratchpad) "▲ Scratchpad" else "▼ Scratchpad",
+                                    fontSize = 10.sp,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    if (!task.description.isNullOrBlank()) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = task.description,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 2
+                        )
+                    }
+
+                    // Live scratchpad summary line if executing
+                    if (scratchpad?.currentStep != null) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "⚡ Current Step: ${scratchpad.currentStep}",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+
+                    if (task.contextFiles.isNotEmpty() || task.targetFile != null) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        val targets = (listOfNotNull(task.targetFile) + task.contextFiles).distinct()
+                        Text(
+                            text = "Targets: " + targets.joinToString(", "),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.outline,
+                            maxLines = 1
+                        )
+                    }
                 }
 
-                if (!task.description.isNullOrBlank()) {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = task.description,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 2
-                    )
-                }
+                Spacer(modifier = Modifier.width(12.dp))
 
-                if (task.contextFiles.isNotEmpty() || task.targetFile != null) {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    val targets = (listOfNotNull(task.targetFile) + task.contextFiles).distinct()
-                    Text(
-                        text = "Targets: " + targets.joinToString(", "),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.outline,
-                        maxLines = 1
-                    )
+                // Approval Actions
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    FilledTonalButton(
+                        onClick = onApprove,
+                        colors = ButtonDefaults.filledTonalButtonColors(
+                            containerColor = Color(0xFF4CAF50).copy(alpha = 0.2f),
+                            contentColor = Color(0xFF2E7D32)
+                        ),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                        modifier = Modifier.height(32.dp)
+                    ) {
+                        Text("Approve", fontSize = 12.sp)
+                    }
+
+                    OutlinedButton(
+                        onClick = onReject,
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error
+                        ),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                        modifier = Modifier.height(32.dp)
+                    ) {
+                        Text("Reject", fontSize = 12.sp)
+                    }
                 }
             }
 
-            Spacer(modifier = Modifier.width(12.dp))
-
-            // Approval Actions
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                FilledTonalButton(
-                    onClick = onApprove,
-                    colors = ButtonDefaults.filledTonalButtonColors(
-                        containerColor = Color(0xFF4CAF50).copy(alpha = 0.2f),
-                        contentColor = Color(0xFF2E7D32)
-                    ),
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                    modifier = Modifier.height(32.dp)
+            // Expanded Agent Execution Scratchpad Drawer
+            if (scratchpad != null && expandedScratchpad) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
                 ) {
-                    Text("Approve", fontSize = 12.sp)
-                }
+                    Column(modifier = Modifier.padding(10.dp)) {
+                        Text(
+                            text = "Agent Execution Scratchpad",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
 
-                OutlinedButton(
-                    onClick = onReject,
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = MaterialTheme.colorScheme.error
-                    ),
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                    modifier = Modifier.height(32.dp)
-                ) {
-                    Text("Reject", fontSize = 12.sp)
+                        if (!scratchpad.notes.isNullOrBlank()) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = scratchpad.notes,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+
+                        if (scratchpad.touchedFiles.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Touched files: ${scratchpad.touchedFiles.joinToString(", ")}",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontFamily = FontFamily.Monospace,
+                                color = MaterialTheme.colorScheme.secondary
+                            )
+                        }
+
+                        if (scratchpad.completedCriteria.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Completed criteria:",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.outline
+                            )
+                            scratchpad.completedCriteria.forEach { criterion ->
+                                Text(
+                                    text = "  ✓ $criterion",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color(0xFF2E7D32)
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }

@@ -76,6 +76,16 @@ class InMemoryTaskRepository : TaskRepository {
         tasks.value = tasks.value + (task.id to updated)
     }
 
+    override suspend fun updateAgentScratchpad(taskId: String, scratchpad: github.magnusp.thoughtless.domain.model.AgentScratchpad) {
+        val current = tasks.value[taskId] ?: return
+        val now = currentTimeMillis()
+        val updated = current.copy(
+            agentScratchpad = scratchpad,
+            updatedAt = now,
+        )
+        tasks.value = tasks.value + (taskId to updated)
+    }
+
     override suspend fun deleteTask(id: String) {
         tasks.value = tasks.value - id
     }
@@ -122,5 +132,52 @@ class InMemoryProjectRepository : ProjectRepository {
 
     override suspend fun deleteProject(id: String) {
         projects.value = projects.value - id
+    }
+}
+
+class InMemoryTaskProposalRepository : github.magnusp.thoughtless.domain.repository.TaskProposalRepository {
+    private val proposals = MutableStateFlow<Map<String, github.magnusp.thoughtless.domain.model.TaskProposal>>(emptyMap())
+
+    override fun getProposals(): Flow<List<github.magnusp.thoughtless.domain.model.TaskProposal>> {
+        return proposals.map { it.values.sortedByDescending { p -> p.createdAt } }
+    }
+
+    override fun getPendingProposals(): Flow<List<github.magnusp.thoughtless.domain.model.TaskProposal>> {
+        return proposals.map { map ->
+            map.values
+                .filter { it.status == github.magnusp.thoughtless.domain.model.ProposalStatus.PROPOSED }
+                .sortedByDescending { it.createdAt }
+        }
+    }
+
+    override fun getProposalsByProject(projectId: String?): Flow<List<github.magnusp.thoughtless.domain.model.TaskProposal>> {
+        return proposals.map { map ->
+            map.values
+                .filter { it.projectId == projectId }
+                .sortedByDescending { it.createdAt }
+        }
+    }
+
+    override fun getProposalById(id: String): Flow<github.magnusp.thoughtless.domain.model.TaskProposal?> {
+        return proposals.map { it[id] }
+    }
+
+    override suspend fun saveProposal(proposal: github.magnusp.thoughtless.domain.model.TaskProposal): github.magnusp.thoughtless.domain.model.TaskProposal {
+        proposals.value = proposals.value + (proposal.id to proposal)
+        return proposal
+    }
+
+    override suspend fun updateProposalStatus(id: String, status: github.magnusp.thoughtless.domain.model.ProposalStatus) {
+        val current = proposals.value[id] ?: return
+        val now = currentTimeMillis()
+        val updated = current.copy(
+            status = status,
+            reviewedAt = now,
+        )
+        proposals.value = proposals.value + (id to updated)
+    }
+
+    override suspend fun deleteProposal(id: String) {
+        proposals.value = proposals.value - id
     }
 }

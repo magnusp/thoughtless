@@ -61,8 +61,9 @@ Proposes a new task, architectural spike, exploration, or edge case discovered d
   - `title` (string, required): Clear title describing the discovered requirement.
   - `rationale` (string, required): Why this work is necessary, what was discovered, or which file prompted this finding.
   - `type` (string, enum: `TASK`, `SPIKE`, `EXPLORATION`, `RFC`, optional, default `TASK`): Classification of the proposed work.
-  - `suggestedTargetFile` (string, optional): Target file the agent identified as needing modification.
-  - `suggestedContextFiles` (string[], optional): Associated context documents or tests.
+  - `suggestedWorkspace` (string, optional): Canonical repository identifier (e.g. `github.com/org/repo`) or logical name. Host absolute paths are forbidden.
+  - `suggestedTargetFile` (string, optional): Relative target file path the agent identified as needing modification.
+  - `suggestedContextFiles` (string[], optional): Relative context documents or tests.
   - `suggestedDependsOn` (string[], optional): Existing task IDs this proposal would depend on.
   - `acceptanceCriteria` (string[], optional): Recommended verification criteria.
   - `sourceTaskId` (string, optional): The ID of the task the agent was executing when this discovery was made.
@@ -74,9 +75,10 @@ Updates an existing approved task with unambiguous requirements, acceptance crit
   - `taskId` (string, required): Unique identifier of the task.
   - `title` (string, optional): Refined concise task title.
   - `description` (string, optional): Refined task description with contextual wikilinks.
+  - `workspace` (string, optional): Canonical repository URL or logical workspace name. Host absolute paths are forbidden.
   - `acceptanceCriteria` (string[], optional): Concrete, verifiable criteria required for agent completion.
-  - `targetFile` (string, optional): Primary file the autonomous agent is expected to mutate (e.g. `ArcadeDBEngine.kt`).
-  - `contextFiles` (string[], optional): Associated spec, schema, or test files needed for context.
+  - `targetFile` (string, optional): Primary relative file the autonomous agent is expected to mutate (e.g. `ArcadeDBEngine.kt`).
+  - `contextFiles` (string[], optional): Associated spec, schema, or test files needed for context (all relative paths).
   - `priority` (integer `0..4`, optional): Task priority (`NONE=0`, `LOW=1`, `MEDIUM=2`, `HIGH=3`, `URGENT=4`).
 - **Returns**: Updated task entity.
 
@@ -88,14 +90,15 @@ Splits a complex, **already approved** parent task or formal specification into 
   - `subtasks` (array of objects, required):
     - `id` (string, required): Unique subtask slug (e.g. `task-auth-token-refresh`).
     - `title` (string, required): Subtask title.
-    - `targetFile` (string, optional): File path mutated by this task.
-    - `contextFiles` (string[], optional): Context reference files.
+    - `workspace` (string, optional): Canonical workspace identifier.
+    - `targetFile` (string, optional): File path mutated by this task (relative).
+    - `contextFiles` (string[], optional): Context reference files (relative).
     - `dependsOn` (string[], required): IDs of prerequisite tasks that must complete before this task.
     - `acceptanceCriteria` (string[], required): Step-by-step verification criteria.
 - **Returns**: Created tasks and the generated `DEPENDS_ON` graph edges.
 
 #### `validate_task_dag`
-Executes Kahn's topological sort and cycle detection over a set of tasks to verify execution feasibility before freezing the plan.
+Executes Kahn's topological sort and cycle detection over a set of tasks to verify execution feasibility before freezing the plan. Automatically ensures the **Disjoint Target Invariant**: tasks with identical `(workspace, targetFile)` are sequenced into distinct execution tiers.
 - **Parameters**:
   - `taskIds` (string[], optional): Subset of tasks to validate (defaults to all pending tasks in the project/spec).
 - **Returns**:
@@ -139,7 +142,16 @@ Tools for coordinating autonomous task execution, submitting results, and transi
 Claims the highest priority task ready for execution from Tier 1 (tasks with all dependencies satisfied).
 - **Parameters**:
   - `agentId` (string, required): Identifier of the executing agent or session.
-- **Returns**: Task details, resolved context files, and acceptance criteria; marks task status as `AGENT_RUNNING`.
+- **Returns**: Task details including canonical `workspace` identifier, resolved relative `targetFile` and `contextFiles`, and acceptance criteria; marks task status as `AGENT_RUNNING`.
+
+#### Multi-Agent Concurrency & Worktree Protocol
+When multiple agents execute concurrently on the same host machine against the same repository/workspace:
+1. **Disjoint Target Invariant**: The scheduler guarantees tasks in the same parallel tier never touch the same `(workspace, targetFile)`.
+2. **Git Worktree Isolation**: Agents MUST NOT share a dirty working directory. When claiming a task, each agent binds execution to a private worktree:
+   ```bash
+   git worktree add -B "agent/$TASK_ID" "/tmp/workspaces/$TASK_ID" origin/main
+   ```
+   All edits, build commands, and tests are executed within that dedicated worktree directory. Upon completion and submission, the worktree is cleaned up.
 
 #### `update_task_progress`
 Continuously updates the agent execution scratchpad / workspace while in the execution loop (`AGENT_RUNNING`). Allows the agent to record its current approach, touched files, completed criteria checklist, and notes for live operator visibility and context recovery.
@@ -147,7 +159,7 @@ Continuously updates the agent execution scratchpad / workspace while in the exe
   - `taskId` (string, required): Unique identifier of the task.
   - `currentStep` (string, optional): Short summary of current activity (e.g. `"Running regression tests for DAG sort"`).
   - `notes` (string, optional): Running hypotheses, blockers, or architectural observations.
-  - `touchedFiles` (string[], optional): Files modified or inspected so far.
+  - `touchedFiles` (string[], optional): Files modified or inspected so far (relative paths).
   - `completedCriteria` (string[], optional): Subset of acceptance criteria successfully verified.
 - **Returns**: Updated `AgentScratchpad` entity with confirmation timestamp.
 

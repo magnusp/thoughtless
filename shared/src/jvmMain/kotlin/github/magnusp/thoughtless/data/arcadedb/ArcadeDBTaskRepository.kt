@@ -117,7 +117,9 @@ class ArcadeDBTaskRepository(
         projectId: String?,
         priority: TaskPriority,
         dueDate: Long?,
+        workspace: String?,
     ): Task {
+        github.magnusp.thoughtless.domain.validation.WorkspaceValidator.validateWorkspace(workspace)
         val now = currentTimeMillis()
         val task = Task(
             id = randomId(),
@@ -127,6 +129,7 @@ class ArcadeDBTaskRepository(
             status = TaskStatus.TODO,
             priority = priority,
             dueDate = dueDate,
+            workspace = workspace,
             createdAt = now,
             updatedAt = now,
             completedAt = null,
@@ -173,6 +176,11 @@ class ArcadeDBTaskRepository(
     }
 
     override suspend fun updateTask(task: Task) {
+        github.magnusp.thoughtless.domain.validation.WorkspaceValidator.validateWorkspace(task.workspace)
+        github.magnusp.thoughtless.domain.validation.WorkspaceValidator.validateRelativePath(task.targetFile, "targetFile")
+        task.contextFiles.forEach {
+            github.magnusp.thoughtless.domain.validation.WorkspaceValidator.validateRelativePath(it, "contextFile")
+        }
         val now = currentTimeMillis()
         val updated = task.copy(updatedAt = now)
         ensureDatabase()
@@ -269,6 +277,7 @@ class ArcadeDBTaskRepository(
         vertex.set("acceptanceCriteria", task.acceptanceCriteria)
         vertex.set("dependsOn", task.dependsOn)
         vertex.set("milestoneId", task.milestoneId)
+        vertex.set("workspace", task.workspace)
         vertex.set("canInstallPackages", task.agentPermissions?.canInstallPackages)
         vertex.set("allowedCommands", task.agentPermissions?.allowedCommands)
         vertex.set("agentStatus", task.agentStatus.name)
@@ -349,6 +358,7 @@ class ArcadeDBTaskRepository(
             acceptanceCriteria = acceptanceCriteria,
             dependsOn = dependsOn,
             milestoneId = vertex.getString("milestoneId"),
+            workspace = vertex.getString("workspace"),
             agentPermissions = agentPermissions,
             agentStatus = agentStatus,
             agentScratchpad = agentScratchpad,

@@ -242,6 +242,20 @@ private fun ProposalRowCard(
                             modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
                         )
                     }
+
+                    if (!proposal.suggestedWorkspace.isNullOrBlank()) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Badge(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        ) {
+                            Text(
+                                text = "📁 ${proposal.suggestedWorkspace}",
+                                fontSize = 10.sp,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                            )
+                        }
+                    }
                 }
 
                 if (proposal.rationale.isNotBlank()) {
@@ -390,6 +404,20 @@ private fun TaskRowCard(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         TaskStatusBadge(status = task.agentStatus)
+
+                        if (!task.workspace.isNullOrBlank()) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Badge(
+                                containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f),
+                                contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                            ) {
+                                Text(
+                                    text = "📁 ${task.workspace}",
+                                    fontSize = 10.sp,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                )
+                            }
+                        }
                         
                         if (scratchpad != null) {
                             Spacer(modifier = Modifier.width(6.dp))

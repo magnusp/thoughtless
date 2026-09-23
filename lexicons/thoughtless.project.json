@@ -25,6 +25,9 @@
             "type": "string",
             "maxLength": 30
           },
+          "defaultWorkspace": {
+            "type": "string"
+          },
           "createdAt": {
             "type": "string",
             "format": "datetime"

@@ -77,6 +77,7 @@ data class TaskRecord(
     val priority: Long = 0,
     val dueDate: Long? = null,
     val projectId: String? = null,
+    val workspace: String? = null,
     val createdAt: String,
     val updatedAt: String? = null,
     val completedAt: String? = null,
@@ -89,6 +90,7 @@ data class ProjectRecord(
     val name: String,
     val description: String? = null,
     val color: String? = null,
+    val defaultWorkspace: String? = null,
     val createdAt: String,
     val updatedAt: String? = null,
 )
@@ -139,6 +141,7 @@ data class AgentTaskRecord(
     val description: String? = null,
     val agentStatus: String = "PENDING",
     val projectId: String? = null,
+    val workspace: String? = null,
     val targetFile: String? = null,
     val contextFiles: List<String> = emptyList(),
     val dependsOn: List<String> = emptyList(),

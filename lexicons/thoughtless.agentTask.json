@@ -34,6 +34,9 @@
           "projectId": {
             "type": "string"
           },
+          "workspace": {
+            "type": "string"
+          },
           "targetFile": {
             "type": "string"
           },

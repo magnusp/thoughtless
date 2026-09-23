@@ -42,6 +42,7 @@ data class Task(
     val acceptanceCriteria: List<String> = emptyList(),
     val dependsOn: List<String> = emptyList(),
     val milestoneId: String? = null,
+    val workspace: String? = null,
     val agentPermissions: AgentPermissions? = null,
     val agentStatus: AgentTaskStatus = AgentTaskStatus.PENDING,
     val agentScratchpad: AgentScratchpad? = null,

@@ -17,6 +17,7 @@ data class TaskProposal(
     val suggestedDependsOn: List<String> = emptyList(),
     val acceptanceCriteria: List<String> = emptyList(),
     val priority: TaskPriority = TaskPriority.MEDIUM,
+    val suggestedWorkspace: String? = null,
     val sourceTaskId: String? = null,
     val projectId: String? = null,
     val createdAt: Long,

@@ -228,14 +228,18 @@ class WorkspaceViewModel(
         description: String? = null,
         projectId: String? = _selectedProjectId.value,
         priority: TaskPriority = TaskPriority.NONE,
+        workspace: String? = null,
     ) {
         if (title.isBlank()) return
         viewModelScope.launch {
+            val project = projectId?.let { pid -> projects.value.firstOrNull { it.id == pid } }
+            val resolvedWorkspace = workspace ?: project?.defaultWorkspace
             taskRepository.createTask(
                 title = title.trim(),
                 description = description?.trim(),
                 projectId = projectId,
                 priority = priority,
+                workspace = resolvedWorkspace,
             )
         }
     }
@@ -253,10 +257,10 @@ class WorkspaceViewModel(
         }
     }
 
-    fun createProject(name: String, color: String? = null) {
+    fun createProject(name: String, color: String? = null, defaultWorkspace: String? = null) {
         if (name.isBlank()) return
         viewModelScope.launch {
-            projectRepository.createProject(name = name.trim(), color = color)
+            projectRepository.createProject(name = name.trim(), color = color, defaultWorkspace = defaultWorkspace?.trim()?.ifBlank { null })
         }
     }
 
@@ -308,12 +312,14 @@ class WorkspaceViewModel(
         )
         val exportModel = try {
             val (order, tiers) = dagDecomposerService.topologicalSort(currentTasks)
+            val currentProject = targetProjectId.let { pid -> projects.value.firstOrNull { it.id == pid } }
             val executableTasks = currentTasks.map { t ->
                 github.magnusp.thoughtless.service.AgentExecutableTask(
                     id = t.id,
                     title = t.title,
                     description = t.description,
                     type = t.type.name,
+                    workspace = t.workspace ?: currentProject?.defaultWorkspace,
                     targetFile = t.targetFile,
                     contextFiles = t.contextFiles,
                     acceptanceCriteria = t.acceptanceCriteria,

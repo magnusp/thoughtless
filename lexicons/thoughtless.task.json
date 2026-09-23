@@ -42,6 +42,9 @@
           "projectId": {
             "type": "string"
           },
+          "workspace": {
+            "type": "string"
+          },
           "createdAt": {
             "type": "string",
             "format": "datetime"

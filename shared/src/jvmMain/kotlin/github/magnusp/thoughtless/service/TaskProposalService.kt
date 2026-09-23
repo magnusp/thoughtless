@@ -33,9 +33,15 @@ class TaskProposalService(
         suggestedDependsOn: List<String> = emptyList(),
         acceptanceCriteria: List<String> = emptyList(),
         priority: TaskPriority = TaskPriority.MEDIUM,
+        suggestedWorkspace: String? = null,
         sourceTaskId: String? = null,
         projectId: String? = null,
     ): TaskProposal {
+        github.magnusp.thoughtless.domain.validation.WorkspaceValidator.validateWorkspace(suggestedWorkspace)
+        github.magnusp.thoughtless.domain.validation.WorkspaceValidator.validateRelativePath(suggestedTargetFile, "suggestedTargetFile")
+        suggestedContextFiles.forEach {
+            github.magnusp.thoughtless.domain.validation.WorkspaceValidator.validateRelativePath(it, "suggestedContextFile")
+        }
         val now = currentTimeMillis()
         val proposal = TaskProposal(
             id = "prop-${randomId()}",
@@ -48,6 +54,7 @@ class TaskProposalService(
             suggestedDependsOn = suggestedDependsOn.map { it.trim() }.filter { it.isNotBlank() },
             acceptanceCriteria = acceptanceCriteria.map { it.trim() }.filter { it.isNotBlank() },
             priority = priority,
+            suggestedWorkspace = suggestedWorkspace?.trim(),
             sourceTaskId = sourceTaskId,
             projectId = projectId,
             createdAt = now,
@@ -82,6 +89,7 @@ class TaskProposalService(
             createdAt = now,
             updatedAt = now,
             type = proposal.type,
+            workspace = proposal.suggestedWorkspace,
             contextFiles = proposal.suggestedContextFiles,
             targetFile = proposal.suggestedTargetFile,
             acceptanceCriteria = proposal.acceptanceCriteria,

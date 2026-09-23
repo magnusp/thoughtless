@@ -148,6 +148,11 @@ class ArcadeDBEngine(
         taskType.getOrCreateProperty("canInstallPackages", Type.BOOLEAN)
         taskType.getOrCreateProperty("allowedCommands", Type.LIST)
         taskType.getOrCreateProperty("agentStatus", Type.STRING)
+        taskType.getOrCreateProperty("scratchpadCurrentStep", Type.STRING)
+        taskType.getOrCreateProperty("scratchpadNotes", Type.STRING)
+        taskType.getOrCreateProperty("scratchpadTouchedFiles", Type.LIST)
+        taskType.getOrCreateProperty("scratchpadCompletedCriteria", Type.LIST)
+        taskType.getOrCreateProperty("scratchpadLastUpdated", Type.LONG)
         taskType.getOrCreateTypeIndex(Schema.INDEX_TYPE.LSM_TREE, true, "id")
 
         // 2. Project vertex type
@@ -217,6 +222,24 @@ class ArcadeDBEngine(
         specType.getOrCreateProperty("frozenAt", Type.LONG)
         specType.getOrCreateTypeIndex(Schema.INDEX_TYPE.LSM_TREE, true, "id")
 
+        // 7. TaskProposal vertex type
+        val proposalType = schema.getOrCreateVertexType("TaskProposal")
+        proposalType.getOrCreateProperty("id", Type.STRING)
+        proposalType.getOrCreateProperty("title", Type.STRING)
+        proposalType.getOrCreateProperty("rationale", Type.STRING)
+        proposalType.getOrCreateProperty("type", Type.STRING)
+        proposalType.getOrCreateProperty("status", Type.STRING)
+        proposalType.getOrCreateProperty("suggestedTargetFile", Type.STRING)
+        proposalType.getOrCreateProperty("suggestedContextFiles", Type.LIST)
+        proposalType.getOrCreateProperty("suggestedDependsOn", Type.LIST)
+        proposalType.getOrCreateProperty("acceptanceCriteria", Type.LIST)
+        proposalType.getOrCreateProperty("priority", Type.LONG)
+        proposalType.getOrCreateProperty("sourceTaskId", Type.STRING)
+        proposalType.getOrCreateProperty("projectId", Type.STRING)
+        proposalType.getOrCreateProperty("createdAt", Type.LONG)
+        proposalType.getOrCreateProperty("reviewedAt", Type.LONG)
+        proposalType.getOrCreateTypeIndex(Schema.INDEX_TYPE.LSM_TREE, true, "id")
+
         // Edge types
         schema.getOrCreateEdgeType("HAS_TASK")
         schema.getOrCreateEdgeType("HAS_LABEL")
@@ -224,5 +247,6 @@ class ArcadeDBEngine(
         schema.getOrCreateEdgeType("IMPLEMENTS")
         schema.getOrCreateEdgeType("MUTATES")
         schema.getOrCreateEdgeType("DEPENDS_ON")
+        schema.getOrCreateEdgeType("PROPOSED_FROM")
     }
 }

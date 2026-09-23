@@ -141,13 +141,24 @@ Claims the highest priority task ready for execution from Tier 1 (tasks with all
   - `agentId` (string, required): Identifier of the executing agent or session.
 - **Returns**: Task details, resolved context files, and acceptance criteria; marks task status as `AGENT_RUNNING`.
 
+#### `update_task_progress`
+Continuously updates the agent execution scratchpad / workspace while in the execution loop (`AGENT_RUNNING`). Allows the agent to record its current approach, touched files, completed criteria checklist, and notes for live operator visibility and context recovery.
+- **Parameters**:
+  - `taskId` (string, required): Unique identifier of the task.
+  - `currentStep` (string, optional): Short summary of current activity (e.g. `"Running regression tests for DAG sort"`).
+  - `notes` (string, optional): Running hypotheses, blockers, or architectural observations.
+  - `touchedFiles` (string[], optional): Files modified or inspected so far.
+  - `completedCriteria` (string[], optional): Subset of acceptance criteria successfully verified.
+- **Returns**: Updated `AgentScratchpad` entity with confirmation timestamp.
+
 #### `submit_task_for_review`
-Submits completed agent work (patch, branch, or test results) and transitions the task into `AWAITING_REVIEW`.
+Submits completed agent work and transitions the task into `AWAITING_REVIEW`. Because continuous execution history and context are maintained in the task scratchpad (`update_task_progress`), this tool is slimmed down to essential review findings.
 - **Parameters**:
   - `taskId` (string, required): ID of the task.
-  - `agentId` (string, required): Identifier of the agent submitting work.
-  - `patchSummary` (string, required): Summary of code changes made.
-  - `verificationOutput` (string, optional): Test execution log or verification proof.
+  - `reviewSummary` (string, required): Concise high-level summary for human review.
+  - `diffUrlOrBranch` (string, optional): Diff URL, patch reference, or git branch name.
+  - `testsPassed` (boolean, required): Whether automated test suites / verification commands passed.
+  - `verificationOutput` (string, optional): Concise test execution log or verification output snippet.
 - **Returns**: Updated task state (`AWAITING_REVIEW`). Ready for human approval in the Desktop UI.
 
 ---

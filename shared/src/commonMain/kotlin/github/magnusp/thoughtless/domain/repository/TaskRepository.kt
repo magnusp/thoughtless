@@ -19,6 +19,7 @@ interface TaskRepository {
     ): Task
     suspend fun updateTaskStatus(id: String, status: TaskStatus)
     suspend fun updateTask(task: Task)
+    suspend fun updateAgentScratchpad(taskId: String, scratchpad: github.magnusp.thoughtless.domain.model.AgentScratchpad)
     suspend fun deleteTask(id: String)
     suspend fun deleteTasksByProject(projectId: String?)
 }

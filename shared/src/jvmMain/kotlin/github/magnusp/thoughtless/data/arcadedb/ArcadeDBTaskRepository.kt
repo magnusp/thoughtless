@@ -205,6 +205,25 @@ class ArcadeDBTaskRepository(
         notifyMutation()
     }
 
+    override suspend fun updateAgentScratchpad(taskId: String, scratchpad: github.magnusp.thoughtless.domain.model.AgentScratchpad) {
+        val now = currentTimeMillis()
+        ensureDatabase()
+        engine.transaction { db ->
+            val cursor = db.lookupByKey("Task", "id", taskId)
+            if (cursor.hasNext()) {
+                val vertex = cursor.next().asVertex().modify()
+                vertex.set("scratchpadCurrentStep", scratchpad.currentStep)
+                vertex.set("scratchpadNotes", scratchpad.notes)
+                vertex.set("scratchpadTouchedFiles", scratchpad.touchedFiles)
+                vertex.set("scratchpadCompletedCriteria", scratchpad.completedCriteria)
+                vertex.set("scratchpadLastUpdated", if (scratchpad.lastUpdated > 0L) scratchpad.lastUpdated else now)
+                vertex.set("updatedAt", now)
+                vertex.save()
+            }
+        }
+        notifyMutation()
+    }
+
     override suspend fun deleteTask(id: String) {
         ensureDatabase()
         engine.transaction { db ->
@@ -253,6 +272,11 @@ class ArcadeDBTaskRepository(
         vertex.set("canInstallPackages", task.agentPermissions?.canInstallPackages)
         vertex.set("allowedCommands", task.agentPermissions?.allowedCommands)
         vertex.set("agentStatus", task.agentStatus.name)
+        vertex.set("scratchpadCurrentStep", task.agentScratchpad?.currentStep)
+        vertex.set("scratchpadNotes", task.agentScratchpad?.notes)
+        vertex.set("scratchpadTouchedFiles", task.agentScratchpad?.touchedFiles ?: emptyList<String>())
+        vertex.set("scratchpadCompletedCriteria", task.agentScratchpad?.completedCriteria ?: emptyList<String>())
+        vertex.set("scratchpadLastUpdated", task.agentScratchpad?.lastUpdated)
     }
 
     private fun vertexToTask(vertex: Vertex): Task {
@@ -292,6 +316,22 @@ class ArcadeDBTaskRepository(
         val acceptanceCriteria = vertex.getList<String>("acceptanceCriteria") ?: emptyList()
         val dependsOn = vertex.getList<String>("dependsOn") ?: emptyList()
 
+        val scratchpadCurrentStep = vertex.getString("scratchpadCurrentStep")
+        val scratchpadNotes = vertex.getString("scratchpadNotes")
+        val scratchpadTouchedFiles = vertex.getList<String>("scratchpadTouchedFiles") ?: emptyList()
+        val scratchpadCompletedCriteria = vertex.getList<String>("scratchpadCompletedCriteria") ?: emptyList()
+        val scratchpadLastUpdated = vertex.getLong("scratchpadLastUpdated") ?: 0L
+
+        val agentScratchpad = if (scratchpadCurrentStep != null || scratchpadNotes != null || scratchpadTouchedFiles.isNotEmpty() || scratchpadCompletedCriteria.isNotEmpty() || scratchpadLastUpdated > 0L) {
+            github.magnusp.thoughtless.domain.model.AgentScratchpad(
+                currentStep = scratchpadCurrentStep,
+                notes = scratchpadNotes,
+                touchedFiles = scratchpadTouchedFiles,
+                completedCriteria = scratchpadCompletedCriteria,
+                lastUpdated = scratchpadLastUpdated,
+            )
+        } else null
+
         return Task(
             id = vertex.getString("id"),
             projectId = vertex.getString("projectId"),
@@ -311,6 +351,7 @@ class ArcadeDBTaskRepository(
             milestoneId = vertex.getString("milestoneId"),
             agentPermissions = agentPermissions,
             agentStatus = agentStatus,
+            agentScratchpad = agentScratchpad,
         )
     }
 }

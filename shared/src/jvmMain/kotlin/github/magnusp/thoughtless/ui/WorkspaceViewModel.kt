@@ -41,6 +41,8 @@ class WorkspaceViewModel(
     val contextGraphRepository: ContextGraphRepository,
     val markdownIngestionService: MarkdownIngestionService,
     val dagDecomposerService: DAGDecomposerService,
+    val taskProposalRepository: github.magnusp.thoughtless.domain.repository.TaskProposalRepository? = null,
+    val taskProposalService: github.magnusp.thoughtless.service.TaskProposalService? = null,
 ) : ViewModel() {
 
     companion object {
@@ -49,9 +51,19 @@ class WorkspaceViewModel(
             val taskRepo = github.magnusp.thoughtless.data.arcadedb.ArcadeDBTaskRepository(engine)
             val projectRepo = github.magnusp.thoughtless.data.arcadedb.ArcadeDBProjectRepository(engine)
             val graphRepo = github.magnusp.thoughtless.data.arcadedb.ArcadeDBContextGraphRepository(engine)
+            val proposalRepo = github.magnusp.thoughtless.data.arcadedb.ArcadeDBTaskProposalRepository(engine)
+            val proposalService = github.magnusp.thoughtless.service.TaskProposalService(proposalRepo, taskRepo, graphRepo)
             val markdownService = MarkdownIngestionService(graphRepo)
             val dagService = DAGDecomposerService(taskRepo, graphRepo)
-            return WorkspaceViewModel(taskRepo, projectRepo, graphRepo, markdownService, dagService)
+            return WorkspaceViewModel(
+                taskRepository = taskRepo,
+                projectRepository = projectRepo,
+                contextGraphRepository = graphRepo,
+                markdownIngestionService = markdownService,
+                dagDecomposerService = dagService,
+                taskProposalRepository = proposalRepo,
+                taskProposalService = proposalService,
+            )
         }
     }
 
@@ -331,5 +343,45 @@ class WorkspaceViewModel(
             )
         }
         return dagDecomposerService.exportToJson(exportModel)
+    }
+
+    // 5. Discovered Proposals & Agent Scratchpad Workspace
+    val pendingProposals: StateFlow<List<github.magnusp.thoughtless.domain.model.TaskProposal>> = _selectedProjectId
+        .flatMapLatest { projectId ->
+            taskProposalRepository?.let { repo ->
+                if (projectId == null) repo.getPendingProposals()
+                else repo.getProposalsByProject(projectId).map { list ->
+                    list.filter { it.status == github.magnusp.thoughtless.domain.model.ProposalStatus.PROPOSED }
+                }
+            } ?: kotlinx.coroutines.flow.flowOf(emptyList())
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.Eagerly,
+            initialValue = emptyList(),
+        )
+
+    fun acceptProposal(
+        proposalId: String,
+        refine: ((github.magnusp.thoughtless.domain.model.TaskProposal) -> github.magnusp.thoughtless.domain.model.TaskProposal)? = null,
+    ) {
+        viewModelScope.launch {
+            taskProposalService?.acceptProposal(proposalId, refine)
+        }
+    }
+
+    fun rejectProposal(proposalId: String) {
+        viewModelScope.launch {
+            taskProposalService?.rejectProposal(proposalId)
+        }
+    }
+
+    fun updateTaskProgress(
+        taskId: String,
+        scratchpad: github.magnusp.thoughtless.domain.model.AgentScratchpad,
+    ) {
+        viewModelScope.launch {
+            taskRepository.updateAgentScratchpad(taskId, scratchpad)
+        }
     }
 }

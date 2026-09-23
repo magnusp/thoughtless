@@ -113,16 +113,16 @@ class InMemoryProjectRepository : ProjectRepository {
         name: String,
         description: String?,
         color: String?,
-        defaultWorkspace: String?,
+        workspace: String?,
     ): Project {
-        github.magnusp.thoughtless.domain.validation.WorkspaceValidator.validateWorkspace(defaultWorkspace)
+        github.magnusp.thoughtless.domain.validation.WorkspaceValidator.validateWorkspace(workspace)
         val now = currentTimeMillis()
         val project = Project(
             id = randomId(),
             name = name,
             description = description,
             color = color,
-            defaultWorkspace = defaultWorkspace,
+            workspace = workspace,
             createdAt = now,
             updatedAt = now,
         )

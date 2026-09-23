@@ -61,7 +61,7 @@ class TaskListViewModel(
         if (title.isBlank()) return
         viewModelScope.launch {
             val project = projectId?.let { pid -> projects.value.firstOrNull { it.id == pid } }
-            val resolvedWorkspace = workspace ?: project?.defaultWorkspace
+            val resolvedWorkspace = workspace ?: project?.workspace
             taskRepository.createTask(
                 title = title.trim(),
                 description = description?.trim()?.ifBlank { null },
@@ -89,7 +89,7 @@ class TaskListViewModel(
         name: String,
         description: String? = null,
         color: String? = null,
-        defaultWorkspace: String? = null,
+        workspace: String? = null,
     ) {
         if (name.isBlank()) return
         viewModelScope.launch {
@@ -97,7 +97,7 @@ class TaskListViewModel(
                 name = name.trim(),
                 description = description?.trim()?.ifBlank { null },
                 color = color,
-                defaultWorkspace = defaultWorkspace?.trim()?.ifBlank { null },
+                workspace = workspace?.trim()?.ifBlank { null },
             )
         }
     }

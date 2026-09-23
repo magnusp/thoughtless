@@ -73,16 +73,16 @@ class ArcadeDBProjectRepository(
         name: String,
         description: String?,
         color: String?,
-        defaultWorkspace: String?,
+        workspace: String?,
     ): Project {
-        github.magnusp.thoughtless.domain.validation.WorkspaceValidator.validateWorkspace(defaultWorkspace)
+        github.magnusp.thoughtless.domain.validation.WorkspaceValidator.validateWorkspace(workspace)
         val now = currentTimeMillis()
         val project = Project(
             id = randomId(),
             name = name,
             description = description,
             color = color,
-            defaultWorkspace = defaultWorkspace,
+            workspace = workspace,
             createdAt = now,
             updatedAt = now,
         )
@@ -99,7 +99,7 @@ class ArcadeDBProjectRepository(
     }
 
     override suspend fun updateProject(project: Project) {
-        github.magnusp.thoughtless.domain.validation.WorkspaceValidator.validateWorkspace(project.defaultWorkspace)
+        github.magnusp.thoughtless.domain.validation.WorkspaceValidator.validateWorkspace(project.workspace)
         val now = currentTimeMillis()
         val updated = project.copy(updatedAt = now)
         ensureDatabase()
@@ -149,7 +149,7 @@ class ArcadeDBProjectRepository(
         vertex.set("name", project.name)
         vertex.set("description", project.description)
         vertex.set("color", project.color)
-        vertex.set("defaultWorkspace", project.defaultWorkspace)
+        vertex.set("workspace", project.workspace)
         vertex.set("createdAt", project.createdAt)
         vertex.set("updatedAt", project.updatedAt)
     }
@@ -160,7 +160,7 @@ class ArcadeDBProjectRepository(
             name = vertex.getString("name") ?: "",
             description = vertex.getString("description"),
             color = vertex.getString("color"),
-            defaultWorkspace = vertex.getString("defaultWorkspace"),
+            workspace = vertex.getString("workspace"),
             createdAt = vertex.getLong("createdAt") ?: 0L,
             updatedAt = vertex.getLong("updatedAt") ?: 0L,
         )

@@ -162,7 +162,7 @@ class ArcadeDBEngine(
         projectType.getOrCreateProperty("name", Type.STRING)
         projectType.getOrCreateProperty("description", Type.STRING)
         projectType.getOrCreateProperty("color", Type.STRING)
-        projectType.getOrCreateProperty("defaultWorkspace", Type.STRING)
+        projectType.getOrCreateProperty("workspace", Type.STRING)
         projectType.getOrCreateProperty("createdAt", Type.LONG)
         projectType.getOrCreateProperty("updatedAt", Type.LONG)
         projectType.getOrCreateTypeIndex(Schema.INDEX_TYPE.LSM_TREE, true, "id")

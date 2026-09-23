@@ -43,14 +43,14 @@ class ArcadeDBProjectRepositoryTest {
             name = "Project Alpha",
             description = "Main alpha milestone project",
             color = "#10B981",
-            defaultWorkspace = "github.com/org/alpha-service",
+            workspace = "github.com/org/alpha-service",
         )
 
         assertNotNull(project.id)
         assertEquals("Project Alpha", project.name)
         assertEquals("Main alpha milestone project", project.description)
         assertEquals("#10B981", project.color)
-        assertEquals("github.com/org/alpha-service", project.defaultWorkspace)
+        assertEquals("github.com/org/alpha-service", project.workspace)
 
         // Read by ID
         val fetched = projectRepo.getProjectById(project.id).first()

@@ -136,7 +136,7 @@ class DAGDecomposerService(
     suspend fun decomposeAndPersist(
         spec: Spec,
         tasks: List<Task>,
-        defaultWorkspace: String? = null,
+        workspace: String? = null,
     ): AgentTaskDAGExport {
         val now = currentTimeMillis()
 
@@ -147,7 +147,7 @@ class DAGDecomposerService(
         for (task in tasks) {
             val taskToSave = task.copy(
                 projectId = task.projectId ?: spec.projectId,
-                workspace = task.workspace ?: defaultWorkspace,
+                workspace = task.workspace ?: workspace,
                 createdAt = if (task.createdAt > 0) task.createdAt else now,
                 updatedAt = now,
             )
@@ -177,7 +177,7 @@ class DAGDecomposerService(
                 title = task.title,
                 description = task.description,
                 type = task.type.name,
-                workspace = task.workspace ?: defaultWorkspace,
+                workspace = task.workspace ?: workspace,
                 targetFile = task.targetFile,
                 contextFiles = task.contextFiles,
                 acceptanceCriteria = task.acceptanceCriteria,

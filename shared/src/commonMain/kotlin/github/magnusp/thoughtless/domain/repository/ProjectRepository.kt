@@ -10,7 +10,7 @@ interface ProjectRepository {
         name: String,
         description: String? = null,
         color: String? = null,
-        defaultWorkspace: String? = null,
+        workspace: String? = null,
     ): Project
     suspend fun updateProject(project: Project)
     suspend fun deleteProject(id: String)

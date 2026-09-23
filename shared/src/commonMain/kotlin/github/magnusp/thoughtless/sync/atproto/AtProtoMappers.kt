@@ -46,7 +46,7 @@ fun Project.toAtProtoRecord(): ProjectRecord = ProjectRecord(
     name = name,
     description = description,
     color = color,
-    defaultWorkspace = defaultWorkspace,
+    workspace = workspace,
     createdAt = formatIsoTimestamp(createdAt),
     updatedAt = formatIsoTimestamp(updatedAt),
 )
@@ -56,7 +56,7 @@ fun ProjectRecord.toDomain(id: String): Project = Project(
     name = name,
     description = description,
     color = color,
-    defaultWorkspace = defaultWorkspace,
+    workspace = workspace,
     createdAt = parseIsoTimestamp(createdAt),
     updatedAt = updatedAt?.let { parseIsoTimestamp(it) } ?: parseIsoTimestamp(createdAt),
 )

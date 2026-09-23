@@ -205,7 +205,7 @@ class DAGDecomposerServiceTest {
         val dagExport = decomposer.decomposeAndPersist(
             spec = spec,
             tasks = listOf(t1, t2),
-            defaultWorkspace = "github.com/org/backend-service"
+            workspace = "github.com/org/backend-service"
         )
 
         assertEquals("github.com/org/backend-service", dagExport.tasks.first { it.id == "task-1" }.workspace)

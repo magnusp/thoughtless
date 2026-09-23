@@ -233,7 +233,7 @@ class WorkspaceViewModel(
         if (title.isBlank()) return
         viewModelScope.launch {
             val project = projectId?.let { pid -> projects.value.firstOrNull { it.id == pid } }
-            val resolvedWorkspace = workspace ?: project?.defaultWorkspace
+            val resolvedWorkspace = workspace ?: project?.workspace
             taskRepository.createTask(
                 title = title.trim(),
                 description = description?.trim(),
@@ -257,10 +257,10 @@ class WorkspaceViewModel(
         }
     }
 
-    fun createProject(name: String, color: String? = null, defaultWorkspace: String? = null) {
+    fun createProject(name: String, color: String? = null, workspace: String? = null) {
         if (name.isBlank()) return
         viewModelScope.launch {
-            projectRepository.createProject(name = name.trim(), color = color, defaultWorkspace = defaultWorkspace?.trim()?.ifBlank { null })
+            projectRepository.createProject(name = name.trim(), color = color, workspace = workspace?.trim()?.ifBlank { null })
         }
     }
 
@@ -319,7 +319,7 @@ class WorkspaceViewModel(
                     title = t.title,
                     description = t.description,
                     type = t.type.name,
-                    workspace = t.workspace ?: currentProject?.defaultWorkspace,
+                    workspace = t.workspace ?: currentProject?.workspace,
                     targetFile = t.targetFile,
                     contextFiles = t.contextFiles,
                     acceptanceCriteria = t.acceptanceCriteria,

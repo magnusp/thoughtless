@@ -90,7 +90,7 @@ data class ProjectRecord(
     val name: String,
     val description: String? = null,
     val color: String? = null,
-    val defaultWorkspace: String? = null,
+    val workspace: String? = null,
     val createdAt: String,
     val updatedAt: String? = null,
 )

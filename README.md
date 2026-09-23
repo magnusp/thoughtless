@@ -2,7 +2,7 @@
 
 **Thoughtless** is a local-first, decentralized **Agentic Context Graph Engine** built with Kotlin Multiplatform (Compose Desktop), embedded ArcadeDB graph persistence, Flexmark Markdown AST ingestion, and ATProto federated sync.
 
-For complete architectural details, see the [User Guide & Architecture Reference](docs/user-guide.md) and [ATProto Architecture Findings](docs/atproto-spike-findings.md).
+For complete architectural details, see the [User Guide & Architecture Reference](docs/user-guide.md), [MCP Protocol Specification](docs/mcp-specification.md), and [ATProto Architecture Findings](docs/atproto-spike-findings.md).
 
 ---
 

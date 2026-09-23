@@ -116,6 +116,11 @@ class ArcadeDBTaskProposalRepository(
     }
 
     override suspend fun saveProposal(proposal: TaskProposal): TaskProposal {
+        github.magnusp.thoughtless.domain.validation.WorkspaceValidator.validateWorkspace(proposal.suggestedWorkspace)
+        github.magnusp.thoughtless.domain.validation.WorkspaceValidator.validateRelativePath(proposal.suggestedTargetFile, "suggestedTargetFile")
+        proposal.suggestedContextFiles.forEach {
+            github.magnusp.thoughtless.domain.validation.WorkspaceValidator.validateRelativePath(it, "suggestedContextFile")
+        }
         ensureDatabase()
         engine.transaction { db ->
             val cursor = db.lookupByKey("TaskProposal", "id", proposal.id)
@@ -182,6 +187,7 @@ class ArcadeDBTaskProposalRepository(
         vertex.set("suggestedDependsOn", proposal.suggestedDependsOn)
         vertex.set("acceptanceCriteria", proposal.acceptanceCriteria)
         vertex.set("priority", proposal.priority.level)
+        vertex.set("suggestedWorkspace", proposal.suggestedWorkspace)
         vertex.set("sourceTaskId", proposal.sourceTaskId)
         vertex.set("projectId", proposal.projectId)
         vertex.set("createdAt", proposal.createdAt)
@@ -225,6 +231,7 @@ class ArcadeDBTaskProposalRepository(
             suggestedDependsOn = suggestedDependsOn,
             acceptanceCriteria = acceptanceCriteria,
             priority = priority,
+            suggestedWorkspace = vertex.getString("suggestedWorkspace"),
             sourceTaskId = vertex.getString("sourceTaskId"),
             projectId = vertex.getString("projectId"),
             createdAt = vertex.getLong("createdAt") ?: 0L,

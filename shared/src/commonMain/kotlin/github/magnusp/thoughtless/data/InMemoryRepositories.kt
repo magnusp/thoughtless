@@ -41,7 +41,9 @@ class InMemoryTaskRepository : TaskRepository {
         projectId: String?,
         priority: TaskPriority,
         dueDate: Long?,
+        workspace: String?,
     ): Task {
+        github.magnusp.thoughtless.domain.validation.WorkspaceValidator.validateWorkspace(workspace)
         val now = currentTimeMillis()
         val task = Task(
             id = randomId(),
@@ -51,6 +53,7 @@ class InMemoryTaskRepository : TaskRepository {
             status = TaskStatus.TODO,
             priority = priority,
             dueDate = dueDate,
+            workspace = workspace,
             createdAt = now,
             updatedAt = now,
             completedAt = null,
@@ -110,13 +113,16 @@ class InMemoryProjectRepository : ProjectRepository {
         name: String,
         description: String?,
         color: String?,
+        workspace: String?,
     ): Project {
+        github.magnusp.thoughtless.domain.validation.WorkspaceValidator.validateWorkspace(workspace)
         val now = currentTimeMillis()
         val project = Project(
             id = randomId(),
             name = name,
             description = description,
             color = color,
+            workspace = workspace,
             createdAt = now,
             updatedAt = now,
         )

@@ -16,6 +16,7 @@ interface TaskRepository {
         projectId: String? = null,
         priority: TaskPriority = TaskPriority.NONE,
         dueDate: Long? = null,
+        workspace: String? = null,
     ): Task
     suspend fun updateTaskStatus(id: String, status: TaskStatus)
     suspend fun updateTask(task: Task)

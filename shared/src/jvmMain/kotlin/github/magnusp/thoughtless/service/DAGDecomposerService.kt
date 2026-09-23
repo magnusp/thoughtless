@@ -23,6 +23,7 @@ data class AgentExecutableTask(
     val title: String,
     val description: String?,
     val type: String,
+    val workspace: String? = null,
     val targetFile: String?,
     val contextFiles: List<String>,
     val acceptanceCriteria: List<String>,
@@ -50,6 +51,10 @@ class DAGDecomposerService(
 
     /**
      * Performs Kahn's algorithm for topological sorting and cycle detection.
+     * Enforces the Disjoint Target Scheduling Invariant: tasks sharing the same non-null
+     * (workspace, targetFile) are automatically sequenced so they never land in the same
+     * parallel execution tier.
+     *
      * Returns a pair of (topologicalOrder, executionTiers).
      * Throws [CycleDetectedException] if circular dependency is detected.
      */
@@ -63,11 +68,34 @@ class DAGDecomposerService(
             dependents[task.id] = mutableListOf()
         }
 
+        // 1. Explicit user/spec dependsOn constraints
         for (task in tasks) {
             for (dep in task.dependsOn) {
                 if (dep in taskIds) {
                     inDegree[task.id] = (inDegree[task.id] ?: 0) + 1
                     dependents[dep]?.add(task.id)
+                }
+            }
+        }
+
+        // 2. Disjoint Target Scheduling Invariant:
+        // Group tasks by (workspace, targetFile). For each group with > 1 task, synthesize
+        // sequential dependencies between them in order of creation/definition so they do not
+        // run concurrently in the same tier.
+        val targetGroups = tasks
+            .filter { !it.targetFile.isNullOrBlank() }
+            .groupBy { (it.workspace ?: "") to it.targetFile!! }
+
+        for ((_, groupTasks) in targetGroups) {
+            if (groupTasks.size > 1) {
+                for (i in 0 until groupTasks.size - 1) {
+                    val prevTask = groupTasks[i]
+                    val nextTask = groupTasks[i + 1]
+                    // If not already depending on prevTask
+                    if (!nextTask.dependsOn.contains(prevTask.id)) {
+                        inDegree[nextTask.id] = (inDegree[nextTask.id] ?: 0) + 1
+                        dependents[prevTask.id]?.add(nextTask.id)
+                    }
                 }
             }
         }
@@ -108,6 +136,7 @@ class DAGDecomposerService(
     suspend fun decomposeAndPersist(
         spec: Spec,
         tasks: List<Task>,
+        workspace: String? = null,
     ): AgentTaskDAGExport {
         val now = currentTimeMillis()
 
@@ -118,6 +147,7 @@ class DAGDecomposerService(
         for (task in tasks) {
             val taskToSave = task.copy(
                 projectId = task.projectId ?: spec.projectId,
+                workspace = task.workspace ?: workspace,
                 createdAt = if (task.createdAt > 0) task.createdAt else now,
                 updatedAt = now,
             )
@@ -147,6 +177,7 @@ class DAGDecomposerService(
                 title = task.title,
                 description = task.description,
                 type = task.type.name,
+                workspace = task.workspace ?: workspace,
                 targetFile = task.targetFile,
                 contextFiles = task.contextFiles,
                 acceptanceCriteria = task.acceptanceCriteria,

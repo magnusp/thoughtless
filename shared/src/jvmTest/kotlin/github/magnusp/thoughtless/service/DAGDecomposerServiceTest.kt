@@ -161,4 +161,58 @@ class DAGDecomposerServiceTest {
         assertEquals("spec-auth-passkeys", parsedJson["specId"]?.toString()?.replace("\"", ""))
         assertEquals(3, parsedJson["totalTasks"]?.toString()?.toInt())
     }
+
+    @Test
+    fun testDisjointTargetSchedulingInvariant() {
+        // Two tasks with no explicit dependsOn, but targeting the same (workspace, targetFile).
+        // They must NOT land in the same execution tier.
+        val t1 = createTask("task-1", "Update User Auth", targetFile = "User.kt")
+            .copy(workspace = "github.com/org/auth-service")
+        val t2 = createTask("task-2", "Refactor User Model", targetFile = "User.kt")
+            .copy(workspace = "github.com/org/auth-service")
+        val t3 = createTask("task-3", "Independent Metrics", targetFile = "Metrics.kt")
+            .copy(workspace = "github.com/org/auth-service")
+
+        val (order, tiers) = decomposer.topologicalSort(listOf(t1, t2, t3))
+
+        // t1 and t2 must be in different tiers
+        val tierOfT1 = tiers.indexOfFirst { it.contains("task-1") }
+        val tierOfT2 = tiers.indexOfFirst { it.contains("task-2") }
+        assertTrue(tierOfT1 >= 0 && tierOfT2 >= 0)
+        assertTrue(tierOfT1 != tierOfT2, "Conflicting tasks t1 and t2 on User.kt must be in different tiers")
+        assertTrue(tierOfT1 < tierOfT2, "t1 was defined before t2 so t1 should precede t2")
+
+        // Independent t3 can run in parallel in tier 1
+        val tierOfT3 = tiers.indexOfFirst { it.contains("task-3") }
+        assertEquals(0, tierOfT3, "t3 has no conflicts and should run in Tier 1")
+    }
+
+    @Test
+    fun testWorkspaceResolutionAndExport() = runBlocking {
+        val spec = Spec(
+            id = "spec-polyrepo",
+            projectId = "proj-1",
+            title = "Polyrepo Spec",
+            systemSpec = "Cross repo tasks",
+            rfcDocument = "# Polyrepo",
+            frozenAt = 3000L,
+        )
+
+        val t1 = createTask("task-1", "Task with default workspace", targetFile = "Service.kt")
+        val t2 = createTask("task-2", "Task with explicit workspace override", targetFile = "Client.kt")
+            .copy(workspace = "github.com/org/frontend-portal")
+
+        val dagExport = decomposer.decomposeAndPersist(
+            spec = spec,
+            tasks = listOf(t1, t2),
+            workspace = "github.com/org/backend-service"
+        )
+
+        assertEquals("github.com/org/backend-service", dagExport.tasks.first { it.id == "task-1" }.workspace)
+        assertEquals("github.com/org/frontend-portal", dagExport.tasks.first { it.id == "task-2" }.workspace)
+
+        val jsonString = decomposer.exportToJson(dagExport)
+        assertTrue(jsonString.contains("github.com/org/backend-service"))
+        assertTrue(jsonString.contains("github.com/org/frontend-portal"))
+    }
 }

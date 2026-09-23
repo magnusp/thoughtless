@@ -31,8 +31,17 @@ fun AgentQueueView(
     val executionTiers by viewModel.executionTiers.collectAsState()
     val allTasks by viewModel.tasks.collectAsState()
     val pendingProposals by viewModel.pendingProposals.collectAsState()
+    val operatorIdentity by viewModel.operatorIdentity.collectAsState()
+    val workspaceStatuses by viewModel.workspaceStatuses.collectAsState()
     val scope = rememberCoroutineScope()
     var exportJsonDialogContent by remember { mutableStateOf<String?>(null) }
+    var cloningWorkspace by remember { mutableStateOf<String?>(null) }
+    var cloneError by remember { mutableStateOf<String?>(null) }
+
+    // Run workspace readiness check when queue view mounts or tasks change
+    LaunchedEffect(allTasks) {
+        viewModel.checkWorkspacesReadiness()
+    }
 
     Column(
         modifier = modifier
@@ -59,7 +68,66 @@ fun AgentQueueView(
                 )
             }
 
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                // Operator Identity Badge with Self-Check Details
+                val selfCheck = operatorIdentity.selfCheck
+                val badgeColor = when {
+                    selfCheck.isVerified -> Color(0xFF065F46)
+                    selfCheck.status == github.magnusp.thoughtless.identity.SelfCheckStatus.INVALID -> MaterialTheme.colorScheme.errorContainer
+                    operatorIdentity.isAuthenticated -> Color(0xFF065F46)
+                    else -> MaterialTheme.colorScheme.surfaceVariant
+                }
+                val textColor = when {
+                    selfCheck.isVerified -> Color(0xFFD1FAE5)
+                    selfCheck.status == github.magnusp.thoughtless.identity.SelfCheckStatus.INVALID -> MaterialTheme.colorScheme.onErrorContainer
+                    operatorIdentity.isAuthenticated -> Color(0xFFD1FAE5)
+                    else -> MaterialTheme.colorScheme.onSurfaceVariant
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = badgeColor,
+                    modifier = Modifier.padding(end = 4.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = if (selfCheck.isVerified) "✓" else if (operatorIdentity.isAuthenticated) "👤" else "🔒",
+                            fontSize = 12.sp,
+                            color = textColor
+                        )
+                        Column {
+                            Text(
+                                text = if (operatorIdentity.isAuthenticated) {
+                                    val userText = operatorIdentity.username?.let { "@$it" } ?: "Authenticated Operator"
+                                    if (selfCheck.name != null) "$userText (${selfCheck.name})" else userText
+                                } else {
+                                    "Unauthenticated Operator"
+                                },
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = textColor
+                            )
+                            if (selfCheck.scopes.isNotEmpty()) {
+                                Text(
+                                    text = "Scopes: ${selfCheck.scopes.joinToString(", ")}",
+                                    fontSize = 9.sp,
+                                    color = textColor.copy(alpha = 0.8f)
+                                )
+                            } else if (selfCheck.errorMessage != null) {
+                                Text(
+                                    text = selfCheck.errorMessage,
+                                    fontSize = 9.sp,
+                                    color = textColor
+                                )
+                            }
+                        }
+                    }
+                }
+
                 Button(
                     onClick = {
                         scope.launch {
@@ -80,6 +148,28 @@ fun AgentQueueView(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // Workspace Pre-Flight Readiness Section
+            if (workspaceStatuses.isNotEmpty()) {
+                item {
+                    WorkspaceReadinessSection(
+                        statuses = workspaceStatuses.values.toList(),
+                        cloningWorkspace = cloningWorkspace,
+                        cloneError = cloneError,
+                        onClone = { ws ->
+                            scope.launch {
+                                cloningWorkspace = ws
+                                cloneError = null
+                                val res = viewModel.cloneWorkspace(ws)
+                                if (res.isFailure) {
+                                    cloneError = res.exceptionOrNull()?.message ?: "Failed to clone"
+                                }
+                                cloningWorkspace = null
+                            }
+                        }
+                    )
+                }
+            }
+
             // 1. Discovered Work / Proposals Triage Section
             if (pendingProposals.isNotEmpty()) {
                 item {
@@ -242,6 +332,20 @@ private fun ProposalRowCard(
                             modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
                         )
                     }
+
+                    if (!proposal.suggestedWorkspace.isNullOrBlank()) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Badge(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        ) {
+                            Text(
+                                text = "📁 ${proposal.suggestedWorkspace}",
+                                fontSize = 10.sp,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                            )
+                        }
+                    }
                 }
 
                 if (proposal.rationale.isNotBlank()) {
@@ -390,6 +494,20 @@ private fun TaskRowCard(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         TaskStatusBadge(status = task.agentStatus)
+
+                        if (!task.workspace.isNullOrBlank()) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Badge(
+                                containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f),
+                                contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                            ) {
+                                Text(
+                                    text = "📁 ${task.workspace}",
+                                    fontSize = 10.sp,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                )
+                            }
+                        }
                         
                         if (scratchpad != null) {
                             Spacer(modifier = Modifier.width(6.dp))
@@ -543,5 +661,122 @@ private fun TaskStatusBadge(status: AgentTaskStatus) {
             fontWeight = FontWeight.Medium,
             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
         )
+    }
+}
+
+@Composable
+private fun WorkspaceReadinessSection(
+    statuses: List<github.magnusp.thoughtless.workspace.WorkspaceCheckResult>,
+    cloningWorkspace: String?,
+    cloneError: String?,
+    onClone: (String) -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(text = "🛠️", fontSize = 16.sp)
+                    Text(
+                        text = "Workspace Pre-Flight Readiness",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+                val allReady = statuses.all { it.status == github.magnusp.thoughtless.workspace.WorkspaceStatus.READY }
+                Text(
+                    text = if (allReady) "All workspaces ready" else "${statuses.count { it.status != github.magnusp.thoughtless.workspace.WorkspaceStatus.READY }} need attention",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (allReady) Color(0xFF10B981) else Color(0xFFF59E0B)
+                )
+            }
+
+            if (!cloneError.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Clone error: $cloneError",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                statuses.forEach { check ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(8.dp))
+                            .padding(12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = check.workspace,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            if (check.details != null) {
+                                Text(
+                                    text = check.details,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        if (check.status == github.magnusp.thoughtless.workspace.WorkspaceStatus.READY) {
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = Color(0xFF065F46)
+                            ) {
+                                Text(
+                                    text = "READY",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFD1FAE5),
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
+                        } else if (check.status == github.magnusp.thoughtless.workspace.WorkspaceStatus.MISSING_LOCAL_CLONE) {
+                            val isCloning = cloningWorkspace == check.workspace
+                            Button(
+                                onClick = { onClone(check.workspace) },
+                                enabled = !isCloning,
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                modifier = Modifier.height(32.dp)
+                            ) {
+                                Text(if (isCloning) "Cloning..." else "Clone Repo", fontSize = 12.sp)
+                            }
+                        } else {
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = MaterialTheme.colorScheme.errorContainer
+                            ) {
+                                Text(
+                                    text = check.status.name,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onErrorContainer,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }

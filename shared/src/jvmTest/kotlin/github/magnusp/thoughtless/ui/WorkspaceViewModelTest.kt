@@ -47,6 +47,12 @@ class WorkspaceViewModelTest {
         proposalService = github.magnusp.thoughtless.service.TaskProposalService(proposalRepo, taskRepo, graphRepo)
         markdownService = MarkdownIngestionService(graphRepo)
         dagService = DAGDecomposerService(taskRepo, graphRepo)
+        val credDir = File(tempDir, ".thoughtless")
+        val credStore = github.magnusp.thoughtless.identity.OperatorCredentialStore(
+            configDir = credDir,
+            envGetter = { null },
+            processRunner = { Pair(-1, "disabled in tests") }
+        )
 
         viewModel = WorkspaceViewModel(
             taskRepository = taskRepo,
@@ -56,6 +62,7 @@ class WorkspaceViewModelTest {
             dagDecomposerService = dagService,
             taskProposalRepository = proposalRepo,
             taskProposalService = proposalService,
+            operatorCredentialStore = credStore,
         )
     }
 
@@ -181,5 +188,34 @@ class WorkspaceViewModelTest {
         assertNotNull(savedScratchpad)
         assertEquals("Implementing LRU map wrapper", savedScratchpad.currentStep)
         assertEquals(listOf("Cache.kt"), savedScratchpad.touchedFiles)
+    }
+
+    @Test
+    fun testOperatorIdentityAndWorkspaceAssistance() = runBlocking(Dispatchers.Default) {
+        val initialIdentity = viewModel.operatorIdentity.value
+        assertNotNull(initialIdentity)
+
+        // Save local operator token
+        viewModel.saveLocalOperatorToken("ghp_secret_operator_token_987", "operator_magnus")
+        val updatedIdentity = viewModel.operatorIdentity.value
+        assertEquals("operator_magnus", updatedIdentity.username)
+        assertEquals("ghp_secret_operator_token_987", updatedIdentity.token)
+        assertTrue(updatedIdentity.isAuthenticated)
+
+        // Create project with workspace
+        viewModel.createProject("Workspace Alpha", null, "github.com/org/alpha-service")
+        kotlinx.coroutines.delay(100)
+
+        // Check readiness
+        viewModel.checkWorkspacesReadiness()
+        val statuses = viewModel.workspaceStatuses.value
+        assertTrue(statuses.containsKey("github.com/org/alpha-service"))
+        val alphaStatus = statuses["github.com/org/alpha-service"]
+        assertNotNull(alphaStatus)
+
+        // Clear credentials
+        viewModel.clearLocalOperatorToken()
+        val clearedIdentity = viewModel.operatorIdentity.value
+        assertEquals(github.magnusp.thoughtless.identity.OperatorAuthType.NONE, clearedIdentity.authType)
     }
 }

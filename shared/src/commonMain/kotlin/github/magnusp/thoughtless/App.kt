@@ -94,7 +94,7 @@ fun App(
                 projects = projects,
                 selectedProjectId = selectedProjectId,
                 onSelectProject = viewModel::selectProject,
-                onCreateProject = { name, color -> viewModel.createProject(name = name, color = color) },
+                onCreateProject = { name, color, ws -> viewModel.createProject(name = name, color = color, workspace = ws) },
                 onDeleteProject = viewModel::deleteProject,
                 onToggleTask = viewModel::toggleTaskCompletion,
                 onDeleteTask = viewModel::deleteTask,
@@ -117,7 +117,7 @@ fun AppContent(
     projects: List<Project>,
     selectedProjectId: String?,
     onSelectProject: (String?) -> Unit,
-    onCreateProject: (name: String, color: String?) -> Unit,
+    onCreateProject: (name: String, color: String?, workspace: String?) -> Unit,
     onDeleteProject: (String) -> Unit,
     onToggleTask: (Task) -> Unit,
     onDeleteTask: (String) -> Unit,
@@ -163,12 +163,13 @@ fun Sidebar(
     projects: List<Project>,
     selectedProjectId: String?,
     onSelectProject: (String?) -> Unit,
-    onCreateProject: (name: String, color: String?) -> Unit,
+    onCreateProject: (name: String, color: String?, workspace: String?) -> Unit,
     onDeleteProject: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var isAddingProject by remember { mutableStateOf(false) }
     var newProjectName by remember { mutableStateOf("") }
+    var newProjectWorkspace by remember { mutableStateOf("") }
     var selectedColorIndex by remember { mutableStateOf(0) }
 
     val projectColors = remember {
@@ -266,6 +267,14 @@ fun Sidebar(
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    OutlinedTextField(
+                        value = newProjectWorkspace,
+                        onValueChange = { newProjectWorkspace = it },
+                        placeholder = { Text("Workspace (e.g. github.com/org/repo)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
                     Spacer(modifier = Modifier.height(8.dp))
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -295,8 +304,13 @@ fun Sidebar(
                     Button(
                         onClick = {
                             if (newProjectName.isNotBlank()) {
-                                onCreateProject(newProjectName.trim(), projectColors[selectedColorIndex])
+                                onCreateProject(
+                                    newProjectName.trim(),
+                                    projectColors[selectedColorIndex],
+                                    newProjectWorkspace.trim().ifBlank { null }
+                                )
                                 newProjectName = ""
+                                newProjectWorkspace = ""
                                 isAddingProject = false
                             }
                         },
@@ -687,6 +701,10 @@ fun TaskRow(
                     if (projectName != null) {
                         ProjectBadge(name = projectName, color = projectColor)
                     }
+
+                    if (!task.workspace.isNullOrBlank()) {
+                        WorkspaceBadge(workspace = task.workspace)
+                    }
                 }
 
                 if (!task.description.isNullOrBlank()) {
@@ -759,6 +777,23 @@ fun ProjectBadge(name: String, color: String?) {
             text = name,
             style = MaterialTheme.typography.labelSmall,
             color = badgeColor,
+            fontWeight = FontWeight.Medium,
+        )
+    }
+}
+
+@Composable
+fun WorkspaceBadge(workspace: String) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(4.dp))
+            .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f))
+            .padding(horizontal = 6.dp, vertical = 2.dp),
+    ) {
+        Text(
+            text = "📁 $workspace",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSecondaryContainer,
             fontWeight = FontWeight.Medium,
         )
     }

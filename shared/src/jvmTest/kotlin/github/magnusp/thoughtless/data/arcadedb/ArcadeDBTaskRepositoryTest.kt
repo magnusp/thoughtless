@@ -50,6 +50,7 @@ class ArcadeDBTaskRepositoryTest {
             description = "Implement ArcadeDB backing store",
             priority = TaskPriority.HIGH,
             dueDate = 1800000000000L,
+            workspace = "github.com/org/task-tracker",
         )
 
         assertNotNull(created.id)
@@ -58,6 +59,7 @@ class ArcadeDBTaskRepositoryTest {
         assertEquals(TaskStatus.TODO, created.status)
         assertEquals(TaskPriority.HIGH, created.priority)
         assertEquals(1800000000000L, created.dueDate)
+        assertEquals("github.com/org/task-tracker", created.workspace)
         assertNull(created.completedAt)
 
         // Read by ID

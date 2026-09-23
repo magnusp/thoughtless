@@ -43,6 +43,8 @@ class WorkspaceViewModel(
     val dagDecomposerService: DAGDecomposerService,
     val taskProposalRepository: github.magnusp.thoughtless.domain.repository.TaskProposalRepository? = null,
     val taskProposalService: github.magnusp.thoughtless.service.TaskProposalService? = null,
+    val operatorCredentialStore: github.magnusp.thoughtless.identity.OperatorCredentialStore = github.magnusp.thoughtless.identity.OperatorCredentialStore(),
+    val localWorkspaceService: github.magnusp.thoughtless.workspace.LocalWorkspaceService = github.magnusp.thoughtless.workspace.LocalWorkspaceService(),
 ) : ViewModel() {
 
     companion object {
@@ -55,6 +57,8 @@ class WorkspaceViewModel(
             val proposalService = github.magnusp.thoughtless.service.TaskProposalService(proposalRepo, taskRepo, graphRepo)
             val markdownService = MarkdownIngestionService(graphRepo)
             val dagService = DAGDecomposerService(taskRepo, graphRepo)
+            val credStore = github.magnusp.thoughtless.identity.OperatorCredentialStore()
+            val wsService = github.magnusp.thoughtless.workspace.LocalWorkspaceService()
             return WorkspaceViewModel(
                 taskRepository = taskRepo,
                 projectRepository = projectRepo,
@@ -63,6 +67,8 @@ class WorkspaceViewModel(
                 dagDecomposerService = dagService,
                 taskProposalRepository = proposalRepo,
                 taskProposalService = proposalService,
+                operatorCredentialStore = credStore,
+                localWorkspaceService = wsService,
             )
         }
     }
@@ -228,14 +234,18 @@ class WorkspaceViewModel(
         description: String? = null,
         projectId: String? = _selectedProjectId.value,
         priority: TaskPriority = TaskPriority.NONE,
+        workspace: String? = null,
     ) {
         if (title.isBlank()) return
         viewModelScope.launch {
+            val project = projectId?.let { pid -> projects.value.firstOrNull { it.id == pid } }
+            val resolvedWorkspace = workspace ?: project?.workspace
             taskRepository.createTask(
                 title = title.trim(),
                 description = description?.trim(),
                 projectId = projectId,
                 priority = priority,
+                workspace = resolvedWorkspace,
             )
         }
     }
@@ -253,10 +263,10 @@ class WorkspaceViewModel(
         }
     }
 
-    fun createProject(name: String, color: String? = null) {
+    fun createProject(name: String, color: String? = null, workspace: String? = null) {
         if (name.isBlank()) return
         viewModelScope.launch {
-            projectRepository.createProject(name = name.trim(), color = color)
+            projectRepository.createProject(name = name.trim(), color = color, workspace = workspace?.trim()?.ifBlank { null })
         }
     }
 
@@ -308,12 +318,14 @@ class WorkspaceViewModel(
         )
         val exportModel = try {
             val (order, tiers) = dagDecomposerService.topologicalSort(currentTasks)
+            val currentProject = targetProjectId.let { pid -> projects.value.firstOrNull { it.id == pid } }
             val executableTasks = currentTasks.map { t ->
                 github.magnusp.thoughtless.service.AgentExecutableTask(
                     id = t.id,
                     title = t.title,
                     description = t.description,
                     type = t.type.name,
+                    workspace = t.workspace ?: currentProject?.workspace,
                     targetFile = t.targetFile,
                     contextFiles = t.contextFiles,
                     acceptanceCriteria = t.acceptanceCriteria,
@@ -383,5 +395,41 @@ class WorkspaceViewModel(
         viewModelScope.launch {
             taskRepository.updateAgentScratchpad(taskId, scratchpad)
         }
+    }
+
+    // 6. Operator Identity & Local Workspace Assistance
+    private val _operatorIdentity = MutableStateFlow(operatorCredentialStore.resolveIdentity())
+    val operatorIdentity: StateFlow<github.magnusp.thoughtless.identity.OperatorIdentity> = _operatorIdentity.asStateFlow()
+
+    private val _workspaceStatuses = MutableStateFlow<Map<String, github.magnusp.thoughtless.workspace.WorkspaceCheckResult>>(emptyMap())
+    val workspaceStatuses: StateFlow<Map<String, github.magnusp.thoughtless.workspace.WorkspaceCheckResult>> = _workspaceStatuses.asStateFlow()
+
+    fun refreshOperatorIdentity() {
+        _operatorIdentity.value = operatorCredentialStore.resolveIdentity()
+    }
+
+    fun saveLocalOperatorToken(token: String, username: String? = null) {
+        operatorCredentialStore.saveLocalCredentials(token, username)
+        refreshOperatorIdentity()
+    }
+
+    fun clearLocalOperatorToken() {
+        operatorCredentialStore.clearLocalCredentials()
+        refreshOperatorIdentity()
+    }
+
+    fun checkWorkspacesReadiness() {
+        val allProjectWorkspaces = projects.value.mapNotNull { it.workspace }
+        val allTaskWorkspaces = tasks.value.mapNotNull { it.workspace }
+        val allWorkspaces = (allProjectWorkspaces + allTaskWorkspaces).toSet()
+
+        val results = localWorkspaceService.checkAllWorkspaces(allWorkspaces)
+        _workspaceStatuses.value = results.associateBy { it.workspace }
+    }
+
+    suspend fun cloneWorkspace(workspace: String): Result<java.io.File> {
+        val result = localWorkspaceService.ensureWorkspaceCloned(workspace, _operatorIdentity.value)
+        checkWorkspacesReadiness()
+        return result
     }
 }

@@ -21,6 +21,7 @@ import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class WorkspaceViewModelTest {
@@ -243,5 +244,77 @@ class WorkspaceViewModelTest {
         assertTrue(viewModel.navigationFeedback.value?.contains("not found") == true)
         // Should not have switched away from Alpha
         assertEquals(alphaDocId, viewModel.selectedDocumentId.value)
+    }
+
+    @Test
+    fun testDocumentSwitchPreservesEdits() = runBlocking(Dispatchers.Default) {
+        // Create Doc Alpha and Doc Beta
+        viewModel.createNewDocument("Doc Alpha")
+        kotlinx.coroutines.delay(100)
+        val alphaDocId = viewModel.selectedDocumentId.value
+        assertNotNull(alphaDocId)
+
+        viewModel.createNewDocument("Doc Beta")
+        kotlinx.coroutines.delay(100)
+        val betaDocId = viewModel.selectedDocumentId.value
+        assertNotNull(betaDocId)
+        assertEquals(betaDocId, viewModel.selectedDocumentId.value)
+
+        // Edit Doc Beta content without clicking manual Save & Parse AST
+        val editedBetaContent = "# Doc Beta\nUpdated content with [[$alphaDocId]]"
+        viewModel.updateEditorContent(editedBetaContent)
+
+        // Switch to Doc Alpha
+        viewModel.selectDocument(alphaDocId)
+        kotlinx.coroutines.delay(150)
+        assertEquals(alphaDocId, viewModel.selectedDocumentId.value)
+
+        // Switch back to Doc Beta
+        viewModel.selectDocument(betaDocId)
+        kotlinx.coroutines.delay(100)
+        assertEquals(betaDocId, viewModel.selectedDocumentId.value)
+        assertEquals(editedBetaContent, viewModel.editorContent.value)
+
+        // Also verify it was persisted in the graph repository
+        val betaNode = graphRepo.getNodeById(betaDocId).first()
+        assertNotNull(betaNode)
+        assertEquals(editedBetaContent, betaNode.body)
+    }
+
+    @Test
+    fun testDeleteDocument() = runBlocking(Dispatchers.Default) {
+        // Create two documents
+        viewModel.createNewDocument("Document One")
+        kotlinx.coroutines.delay(100)
+        val doc1Id = viewModel.selectedDocumentId.value
+        assertNotNull(doc1Id)
+
+        viewModel.createNewDocument("Document Two")
+        kotlinx.coroutines.delay(100)
+        val doc2Id = viewModel.selectedDocumentId.value
+        assertNotNull(doc2Id)
+        assertEquals(doc2Id, viewModel.selectedDocumentId.value)
+
+        // Drop Document Two
+        viewModel.deleteDocument(doc2Id)
+        kotlinx.coroutines.delay(100)
+
+        // Feedback should report dropped
+        assertTrue(viewModel.navigationFeedback.value?.contains("dropped") == true)
+
+        // Selection should fallback to the remaining document (doc1)
+        assertEquals(doc1Id, viewModel.selectedDocumentId.value)
+
+        // Dropping the last document
+        viewModel.deleteDocument(doc1Id)
+        kotlinx.coroutines.delay(100)
+
+        // Selection and editor content should be cleared
+        assertNull(viewModel.selectedDocumentId.value)
+        assertEquals("", viewModel.editorContent.value)
+
+        // Verify nodes were completely removed from repository
+        assertNull(graphRepo.getNodeById(doc1Id).first())
+        assertNull(graphRepo.getNodeById(doc2Id).first())
     }
 }

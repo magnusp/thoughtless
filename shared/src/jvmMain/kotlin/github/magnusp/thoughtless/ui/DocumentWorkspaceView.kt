@@ -15,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerButton
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.isShiftPressed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.TextLayoutResult
@@ -47,6 +48,7 @@ fun DocumentWorkspaceView(
     var isCreatingDoc by remember { mutableStateOf(false) }
     var newDocTitle by remember { mutableStateOf("") }
     var editorMode by remember { mutableStateOf(WorkspaceEditorMode.EDIT) }
+    var documentToDeleteForConfirmation by remember { mutableStateOf<String?>(null) }
 
     var textLayoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
     val visualTransformation = remember { WikilinkVisualTransformation() }
@@ -150,36 +152,54 @@ fun DocumentWorkspaceView(
                         color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 8.dp, vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
                         ) {
-                            Text(
-                                text = when (doc.type) {
-                                    NodeType.SPEC -> "📄"
-                                    NodeType.REQUIREMENT -> "📌"
-                                    NodeType.ENTITY -> "📦"
-                                    NodeType.ENDPOINT -> "⚡"
-                                    NodeType.TABLE -> "🗄️"
-                                    else -> "📝"
-                                },
-                                fontSize = 14.sp,
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Column {
+                            Row(
+                                modifier = Modifier.weight(1f),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
                                 Text(
-                                    text = doc.label,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
+                                    text = when (doc.type) {
+                                        NodeType.SPEC -> "📄"
+                                        NodeType.REQUIREMENT -> "📌"
+                                        NodeType.ENTITY -> "📦"
+                                        NodeType.ENDPOINT -> "⚡"
+                                        NodeType.TABLE -> "🗄️"
+                                        else -> "📝"
+                                    },
+                                    fontSize = 14.sp,
                                 )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column {
+                                    Text(
+                                        text = doc.label,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                    Text(
+                                        text = doc.id,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                            }
+                            IconButton(
+                                onClick = { documentToDeleteForConfirmation = doc.id },
+                                modifier = Modifier.size(24.dp)
+                            ) {
                                 Text(
-                                    text = doc.id,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
+                                    text = "✕",
+                                    fontSize = 11.sp,
+                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                                 )
                             }
                         }
@@ -264,6 +284,18 @@ fun DocumentWorkspaceView(
                     ) {
                         Text("Save & Parse AST", fontSize = 12.sp)
                     }
+
+                    OutlinedButton(
+                        onClick = { documentToDeleteForConfirmation = selectedDocId },
+                        enabled = selectedDocId != null,
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error,
+                        ),
+                        modifier = Modifier.height(32.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp)
+                    ) {
+                        Text("Drop Document", fontSize = 12.sp)
+                    }
                 }
             }
 
@@ -308,34 +340,7 @@ fun DocumentWorkspaceView(
                     androidx.compose.foundation.text.BasicTextField(
                         value = editorContent,
                         onValueChange = { viewModel.updateEditorContent(it) },
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .pointerInput(editorContent, selectedDocId) {
-                                awaitPointerEventScope {
-                                    while (true) {
-                                        val event = awaitPointerEvent()
-                                        if (event.keyboardModifiers.isShiftPressed) {
-                                            for (change in event.changes) {
-                                                if (change.pressed) {
-                                                    val layout = textLayoutResult
-                                                    if (layout != null) {
-                                                        val offset = layout.getOffsetForPosition(change.position)
-                                                        val link = WikilinkResolver.findWikilinkAtOffset(
-                                                            text = editorContent,
-                                                            offset = offset,
-                                                            currentDocumentId = selectedDocId
-                                                        )
-                                                        if (link != null) {
-                                                            viewModel.navigateToWikilink(link.targetNodeId)
-                                                            change.consume()
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            },
+                        modifier = Modifier.fillMaxSize(),
                         visualTransformation = visualTransformation,
                         onTextLayout = { textLayoutResult = it },
                         textStyle = MaterialTheme.typography.bodyMedium.copy(
@@ -353,7 +358,37 @@ fun DocumentWorkspaceView(
                                 color = MaterialTheme.colorScheme.surface,
                                 modifier = Modifier.fillMaxSize()
                             ) {
-                                Box(modifier = Modifier.fillMaxSize().padding(12.dp)) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(12.dp)
+                                        .pointerInput(editorContent, selectedDocId) {
+                                            awaitPointerEventScope {
+                                                while (true) {
+                                                    val event = awaitPointerEvent(PointerEventPass.Initial)
+                                                    if (event.keyboardModifiers.isShiftPressed) {
+                                                        for (change in event.changes) {
+                                                            if (change.pressed) {
+                                                                val layout = textLayoutResult
+                                                                if (layout != null) {
+                                                                    val offset = layout.getOffsetForPosition(change.position)
+                                                                    val link = WikilinkResolver.findWikilinkAtOffset(
+                                                                        text = editorContent,
+                                                                        offset = offset,
+                                                                        currentDocumentId = selectedDocId
+                                                                    )
+                                                                    if (link != null) {
+                                                                        viewModel.navigateToWikilink(link.targetNodeId)
+                                                                        change.consume()
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                ) {
                                     if (editorContent.isEmpty()) {
                                         Text(
                                             "Write markdown specification with [[wikilinks]]...",
@@ -439,6 +474,48 @@ fun DocumentWorkspaceView(
             }
         }
     }
+
+    // Confirmation Dialog for Dropping a Document
+    val docToDrop = documentToDeleteForConfirmation
+    if (docToDrop != null) {
+        AlertDialog(
+            onDismissRequest = { documentToDeleteForConfirmation = null },
+            title = {
+                Text(
+                    text = "Drop Document?",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                )
+            },
+            text = {
+                Text(
+                    text = "Are you sure you want to drop document '$docToDrop'? This will remove the document, its section anchors, and all associated graph relationships.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.deleteDocument(docToDrop)
+                        documentToDeleteForConfirmation = null
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError,
+                    ),
+                ) {
+                    Text("Drop")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(
+                    onClick = { documentToDeleteForConfirmation = null }
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 }
 
 @Composable
@@ -448,7 +525,8 @@ private fun MarkdownPreviewWithWikilinks(
     onNavigate: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val wikilinks = remember(content) { WikilinkResolver.extractWikilinks(content, currentDocId) }
+    val wikilinks = remember(content, currentDocId) { WikilinkResolver.extractWikilinks(content, currentDocId) }
+    var previewLayoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
 
     Surface(
         shape = RoundedCornerShape(8.dp),
@@ -510,15 +588,58 @@ private fun MarkdownPreviewWithWikilinks(
                 }
             }
 
-            // Raw rendered text
+            // Interactive rendered text supporting Shift-click and click navigation
             item {
+                val annotatedContent = remember(content, wikilinks) {
+                    val builder = androidx.compose.ui.text.AnnotatedString.Builder(content)
+                    for (link in wikilinks) {
+                        builder.addStyle(
+                            style = androidx.compose.ui.text.SpanStyle(
+                                color = Color(0xFF818CF8),
+                                fontWeight = FontWeight.SemiBold,
+                                background = Color(0xFF312E81).copy(alpha = 0.25f),
+                            ),
+                            start = link.startIndex,
+                            end = link.endIndex,
+                        )
+                    }
+                    builder.toAnnotatedString()
+                }
+
                 Text(
-                    text = content,
+                    text = annotatedContent,
                     style = MaterialTheme.typography.bodyMedium.copy(
                         fontFamily = FontFamily.Monospace,
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurface
-                    )
+                    ),
+                    onTextLayout = { previewLayoutResult = it },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .pointerInput(content, currentDocId) {
+                            awaitPointerEventScope {
+                                while (true) {
+                                    val event = awaitPointerEvent(PointerEventPass.Initial)
+                                    for (change in event.changes) {
+                                        if (change.pressed) {
+                                            val layout = previewLayoutResult
+                                            if (layout != null) {
+                                                val offset = layout.getOffsetForPosition(change.position)
+                                                val link = WikilinkResolver.findWikilinkAtOffset(
+                                                    text = content,
+                                                    offset = offset,
+                                                    currentDocumentId = currentDocId
+                                                )
+                                                if (link != null) {
+                                                    onNavigate(link.targetNodeId)
+                                                    change.consume()
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                 )
             }
         }

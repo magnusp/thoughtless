@@ -9,6 +9,7 @@ interface ContextGraphRepository {
     fun getNodeById(id: String): Flow<ContextNode?>
     suspend fun saveNode(node: ContextNode): ContextNode
     suspend fun deleteNode(id: String)
+    suspend fun deleteDocument(documentId: String)
 
     fun getEdges(): Flow<List<ContextEdge>>
     fun getEdgesForNode(nodeId: String): Flow<List<ContextEdge>>

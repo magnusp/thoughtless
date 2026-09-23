@@ -98,6 +98,35 @@ class ArcadeDBContextGraphRepository(
         notifyMutation()
     }
 
+    override suspend fun deleteDocument(documentId: String) {
+        ensureDatabase()
+        engine.transaction { db ->
+            val nodesToDelete = mutableListOf<Vertex>()
+            // 1. Find root document vertex
+            val cursor = db.lookupByKey("ContextNode", "id", documentId)
+            if (cursor.hasNext()) {
+                nodesToDelete.add(cursor.next().asVertex())
+            }
+
+            // 2. Find any section child vertices (id starts with "documentId#")
+            val sectionPrefix = "$documentId#"
+            db.scanType("ContextNode", true) { record ->
+                val vertex = record.asVertex()
+                if (vertex.has("id")) {
+                    val id = vertex.getString("id")
+                    if (id != null && id.startsWith(sectionPrefix)) {
+                        nodesToDelete.add(vertex)
+                    }
+                }
+                true
+            }
+
+            // 3. Delete vertices (ArcadeDB deletes connected incident edges automatically)
+            nodesToDelete.forEach { it.delete() }
+        }
+        notifyMutation()
+    }
+
     override fun getEdges(): Flow<List<ContextEdge>> = flow {
         emit(loadAllEdges())
         mutationFlow.asSharedFlow().collect {

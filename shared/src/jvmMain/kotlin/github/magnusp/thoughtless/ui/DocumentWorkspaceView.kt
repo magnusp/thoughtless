@@ -47,6 +47,7 @@ fun DocumentWorkspaceView(
     var isCreatingDoc by remember { mutableStateOf(false) }
     var newDocTitle by remember { mutableStateOf("") }
     var editorMode by remember { mutableStateOf(WorkspaceEditorMode.EDIT) }
+    var documentToDeleteForConfirmation by remember { mutableStateOf<String?>(null) }
 
     var textLayoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
     val visualTransformation = remember { WikilinkVisualTransformation() }
@@ -150,36 +151,54 @@ fun DocumentWorkspaceView(
                         color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 8.dp, vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
                         ) {
-                            Text(
-                                text = when (doc.type) {
-                                    NodeType.SPEC -> "📄"
-                                    NodeType.REQUIREMENT -> "📌"
-                                    NodeType.ENTITY -> "📦"
-                                    NodeType.ENDPOINT -> "⚡"
-                                    NodeType.TABLE -> "🗄️"
-                                    else -> "📝"
-                                },
-                                fontSize = 14.sp,
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Column {
+                            Row(
+                                modifier = Modifier.weight(1f),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
                                 Text(
-                                    text = doc.label,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
+                                    text = when (doc.type) {
+                                        NodeType.SPEC -> "📄"
+                                        NodeType.REQUIREMENT -> "📌"
+                                        NodeType.ENTITY -> "📦"
+                                        NodeType.ENDPOINT -> "⚡"
+                                        NodeType.TABLE -> "🗄️"
+                                        else -> "📝"
+                                    },
+                                    fontSize = 14.sp,
                                 )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column {
+                                    Text(
+                                        text = doc.label,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                    Text(
+                                        text = doc.id,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                            }
+                            IconButton(
+                                onClick = { documentToDeleteForConfirmation = doc.id },
+                                modifier = Modifier.size(24.dp)
+                            ) {
                                 Text(
-                                    text = doc.id,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
+                                    text = "✕",
+                                    fontSize = 11.sp,
+                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                                 )
                             }
                         }
@@ -263,6 +282,18 @@ fun DocumentWorkspaceView(
                         modifier = Modifier.height(32.dp),
                     ) {
                         Text("Save & Parse AST", fontSize = 12.sp)
+                    }
+
+                    OutlinedButton(
+                        onClick = { documentToDeleteForConfirmation = selectedDocId },
+                        enabled = selectedDocId != null,
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error,
+                        ),
+                        modifier = Modifier.height(32.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp)
+                    ) {
+                        Text("Drop Document", fontSize = 12.sp)
                     }
                 }
             }
@@ -438,6 +469,48 @@ fun DocumentWorkspaceView(
                 )
             }
         }
+    }
+
+    // Confirmation Dialog for Dropping a Document
+    val docToDrop = documentToDeleteForConfirmation
+    if (docToDrop != null) {
+        AlertDialog(
+            onDismissRequest = { documentToDeleteForConfirmation = null },
+            title = {
+                Text(
+                    text = "Drop Document?",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                )
+            },
+            text = {
+                Text(
+                    text = "Are you sure you want to drop document '$docToDrop'? This will remove the document, its section anchors, and all associated graph relationships.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.deleteDocument(docToDrop)
+                        documentToDeleteForConfirmation = null
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError,
+                    ),
+                ) {
+                    Text("Drop")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(
+                    onClick = { documentToDeleteForConfirmation = null }
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }
 

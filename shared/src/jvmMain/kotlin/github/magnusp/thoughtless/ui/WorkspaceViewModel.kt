@@ -91,7 +91,6 @@ class WorkspaceViewModel(
 
     val documentRoots: StateFlow<List<ContextNode>> = allNodes.map { nodes ->
         nodes.filter { !it.id.contains("#") && (it.type == NodeType.SPEC || it.filePath != null) }
-            .ifEmpty { nodes.filter { !it.id.contains("#") } }
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.Eagerly,
@@ -185,6 +184,27 @@ class WorkspaceViewModel(
             val filePath = node?.filePath ?: "docs/$docId.md"
             markdownIngestionService.ingestDocument(content, filePath = filePath)
             loadInspectorData(docId)
+        }
+    }
+
+    fun deleteDocument(documentId: String) {
+        viewModelScope.launch {
+            contextGraphRepository.deleteDocument(documentId)
+
+            if (_selectedDocumentId.value == documentId) {
+                // Select another available document or clear selection
+                val remainingDocs = documentRoots.value.filter { it.id != documentId }
+                if (remainingDocs.isNotEmpty()) {
+                    selectDocument(remainingDocs.first().id)
+                } else {
+                    _selectedDocumentId.value = null
+                    _editorContent.value = ""
+                    _incomingBacklinks.value = emptyList()
+                    _impactedNodes.value = emptyList()
+                    _outgoingEdges.value = emptyList()
+                }
+            }
+            _navigationFeedback.value = "Document '$documentId' dropped"
         }
     }
 

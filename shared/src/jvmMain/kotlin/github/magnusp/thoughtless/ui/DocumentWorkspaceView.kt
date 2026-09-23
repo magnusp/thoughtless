@@ -4,43 +4,20 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Divider
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.VerticalDivider
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.PointerButton
+import androidx.compose.ui.input.pointer.isShiftPressed
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -48,6 +25,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import github.magnusp.thoughtless.domain.model.ContextNode
 import github.magnusp.thoughtless.domain.model.NodeType
+import github.magnusp.thoughtless.domain.wikilink.WikilinkResolver
+
+private enum class WorkspaceEditorMode {
+    EDIT,
+    PREVIEW,
+}
 
 @Composable
 fun DocumentWorkspaceView(
@@ -58,10 +41,15 @@ fun DocumentWorkspaceView(
     val allNodes by viewModel.allNodes.collectAsState()
     val selectedDocId by viewModel.selectedDocumentId.collectAsState()
     val editorContent by viewModel.editorContent.collectAsState()
+    val navigationFeedback by viewModel.navigationFeedback.collectAsState()
 
     var searchQuery by remember { mutableStateOf("") }
     var isCreatingDoc by remember { mutableStateOf(false) }
     var newDocTitle by remember { mutableStateOf("") }
+    var editorMode by remember { mutableStateOf(WorkspaceEditorMode.EDIT) }
+
+    var textLayoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
+    val visualTransformation = remember { WikilinkVisualTransformation() }
 
     // Wikilink autocomplete state
     val showWikilinkSuggestions = editorContent.endsWith("[[")
@@ -107,82 +95,93 @@ fun DocumentWorkspaceView(
                     OutlinedTextField(
                         value = newDocTitle,
                         onValueChange = { newDocTitle = it },
-                        placeholder = { Text("Doc title...", fontSize = 12.sp) },
-                        singleLine = true,
+                        placeholder = { Text("Spec Title") },
                         modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        textStyle = MaterialTheme.typography.bodySmall,
                     )
                     Spacer(modifier = Modifier.height(6.dp))
                     Button(
                         onClick = {
                             if (newDocTitle.isNotBlank()) {
-                                viewModel.createNewDocument(newDocTitle)
+                                viewModel.createNewDocument(newDocTitle.trim())
                                 newDocTitle = ""
                                 isCreatingDoc = false
                             }
                         },
                         modifier = Modifier.fillMaxWidth().height(32.dp),
                     ) {
-                        Text("Create Spec", fontSize = 11.sp)
+                        Text("Create Document", fontSize = 12.sp)
                     }
                 }
             }
 
             Spacer(modifier = Modifier.height(8.dp))
 
+            // Search Filter
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
-                placeholder = { Text("Filter docs...", fontSize = 11.sp) },
+                placeholder = { Text("Search documents...") },
+                modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
-                modifier = Modifier.fillMaxWidth().height(44.dp),
+                textStyle = MaterialTheme.typography.bodySmall,
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
+            // Documents tree
             val filteredDocs = documents.filter {
-                searchQuery.isBlank() || it.label.contains(searchQuery, ignoreCase = true) || it.id.contains(searchQuery, ignoreCase = true)
+                it.label.contains(searchQuery, ignoreCase = true) ||
+                        it.id.contains(searchQuery, ignoreCase = true)
             }
 
-            LazyColumn(modifier = Modifier.fillMaxSize()) {
+            LazyColumn(
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
                 items(filteredDocs, key = { it.id }) { doc ->
                     val isSelected = doc.id == selectedDocId
-                    Box(
+                    Surface(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 2.dp)
                             .clip(RoundedCornerShape(6.dp))
-                            .background(
-                                if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-                                else Color.Transparent
-                            )
-                            .clickable { viewModel.selectDocument(doc.id) }
-                            .padding(horizontal = 8.dp, vertical = 6.dp),
+                            .clickable { viewModel.selectDocument(doc.id) },
+                        color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
                     ) {
-                        Column {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            ) {
-                                Text(
-                                    text = if (doc.type == NodeType.SPEC) "📄" else "📑",
-                                    fontSize = 12.sp,
-                                )
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = when (doc.type) {
+                                    NodeType.SPEC -> "📄"
+                                    NodeType.REQUIREMENT -> "📌"
+                                    NodeType.ENTITY -> "📦"
+                                    NodeType.ENDPOINT -> "⚡"
+                                    NodeType.TABLE -> "🗄️"
+                                    else -> "📝"
+                                },
+                                fontSize = 14.sp,
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column {
                                 Text(
                                     text = doc.label,
-                                    style = MaterialTheme.typography.bodyMedium,
+                                    style = MaterialTheme.typography.bodySmall,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                Text(
+                                    text = doc.id,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                 )
                             }
-                            Text(
-                                text = doc.id,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
                         }
                     }
                 }
@@ -205,34 +204,179 @@ fun DocumentWorkspaceView(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    text = selectedDocId ?: "No document selected",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                Button(
-                    onClick = { viewModel.saveCurrentDocument() },
-                    enabled = selectedDocId != null,
-                    modifier = Modifier.height(32.dp),
-                ) {
-                    Text("Save & Parse AST", fontSize = 12.sp)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        text = selectedDocId ?: "No document selected",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+
+                    // Navigation Hint Badge
+                    Surface(
+                        shape = RoundedCornerShape(4.dp),
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                    ) {
+                        Text(
+                            text = "Shift + Click wikilink to navigate",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    // Mode Toggle: Edit vs Preview
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = MaterialTheme.colorScheme.surface,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
+                    ) {
+                        Row {
+                            TextButton(
+                                onClick = { editorMode = WorkspaceEditorMode.EDIT },
+                                colors = ButtonDefaults.textButtonColors(
+                                    contentColor = if (editorMode == WorkspaceEditorMode.EDIT) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                ),
+                                modifier = Modifier.height(28.dp),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                            ) {
+                                Text("Edit", fontSize = 11.sp, fontWeight = if (editorMode == WorkspaceEditorMode.EDIT) FontWeight.Bold else FontWeight.Normal)
+                            }
+                            TextButton(
+                                onClick = { editorMode = WorkspaceEditorMode.PREVIEW },
+                                colors = ButtonDefaults.textButtonColors(
+                                    contentColor = if (editorMode == WorkspaceEditorMode.PREVIEW) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                ),
+                                modifier = Modifier.height(28.dp),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                            ) {
+                                Text("Preview", fontSize = 11.sp, fontWeight = if (editorMode == WorkspaceEditorMode.PREVIEW) FontWeight.Bold else FontWeight.Normal)
+                            }
+                        }
+                    }
+
+                    Button(
+                        onClick = { viewModel.saveCurrentDocument() },
+                        enabled = selectedDocId != null,
+                        modifier = Modifier.height(32.dp),
+                    ) {
+                        Text("Save & Parse AST", fontSize = 12.sp)
+                    }
                 }
             }
 
-            // Editor Input
+            // Feedback Banner (e.g. Navigated to doc, or doc not found)
+            if (navigationFeedback != null) {
+                Surface(
+                    color = if (navigationFeedback!!.contains("not found") || navigationFeedback!!.contains("Invalid")) {
+                        MaterialTheme.colorScheme.errorContainer
+                    } else {
+                        Color(0xFF065F46)
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = navigationFeedback!!,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (navigationFeedback!!.contains("not found") || navigationFeedback!!.contains("Invalid")) {
+                                MaterialTheme.colorScheme.onErrorContainer
+                            } else {
+                                Color(0xFFD1FAE5)
+                            }
+                        )
+                        TextButton(
+                            onClick = { viewModel.clearNavigationFeedback() },
+                            modifier = Modifier.height(24.dp),
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                        ) {
+                            Text("✕", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface)
+                        }
+                    }
+                }
+            }
+
+            // Editor / Preview Input Area
             Box(modifier = Modifier.weight(0.6f).fillMaxWidth().padding(16.dp)) {
-                OutlinedTextField(
-                    value = editorContent,
-                    onValueChange = { viewModel.updateEditorContent(it) },
-                    placeholder = { Text("Write markdown specification with [[wikilinks]]...") },
-                    modifier = Modifier.fillMaxSize(),
-                    textStyle = MaterialTheme.typography.bodyMedium.copy(
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    ),
-                )
+                if (editorMode == WorkspaceEditorMode.EDIT) {
+                    androidx.compose.foundation.text.BasicTextField(
+                        value = editorContent,
+                        onValueChange = { viewModel.updateEditorContent(it) },
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .pointerInput(editorContent, selectedDocId) {
+                                awaitPointerEventScope {
+                                    while (true) {
+                                        val event = awaitPointerEvent()
+                                        if (event.keyboardModifiers.isShiftPressed) {
+                                            for (change in event.changes) {
+                                                if (change.pressed) {
+                                                    val layout = textLayoutResult
+                                                    if (layout != null) {
+                                                        val offset = layout.getOffsetForPosition(change.position)
+                                                        val link = WikilinkResolver.findWikilinkAtOffset(
+                                                            text = editorContent,
+                                                            offset = offset,
+                                                            currentDocumentId = selectedDocId
+                                                        )
+                                                        if (link != null) {
+                                                            viewModel.navigateToWikilink(link.targetNodeId)
+                                                            change.consume()
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                        visualTransformation = visualTransformation,
+                        onTextLayout = { textLayoutResult = it },
+                        textStyle = MaterialTheme.typography.bodyMedium.copy(
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        ),
+                        decorationBox = { innerTextField ->
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                border = androidx.compose.foundation.BorderStroke(
+                                    1.dp,
+                                    MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+                                ),
+                                color = MaterialTheme.colorScheme.surface,
+                                modifier = Modifier.fillMaxSize()
+                            ) {
+                                Box(modifier = Modifier.fillMaxSize().padding(12.dp)) {
+                                    if (editorContent.isEmpty()) {
+                                        Text(
+                                            "Write markdown specification with [[wikilinks]]...",
+                                            style = MaterialTheme.typography.bodyMedium.copy(
+                                                fontFamily = FontFamily.Monospace,
+                                                fontSize = 13.sp,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                            )
+                                        )
+                                    }
+                                    innerTextField()
+                                }
+                            }
+                        }
+                    )
+                } else {
+                    // Preview Mode with interactive Wikilinks
+                    MarkdownPreviewWithWikilinks(
+                        content = editorContent,
+                        currentDocId = selectedDocId,
+                        onNavigate = { targetId -> viewModel.navigateToWikilink(targetId) }
+                    )
+                }
 
                 // Wikilink autocomplete popup
                 if (showWikilinkSuggestions && wikilinkCandidates.isNotEmpty()) {
@@ -291,6 +435,90 @@ fun DocumentWorkspaceView(
                 BacklinksInspectorPanel(
                     viewModel = viewModel,
                     modifier = Modifier.fillMaxSize(),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MarkdownPreviewWithWikilinks(
+    content: String,
+    currentDocId: String?,
+    onNavigate: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val wikilinks = remember(content) { WikilinkResolver.extractWikilinks(content, currentDocId) }
+
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)),
+        color = MaterialTheme.colorScheme.surface,
+        modifier = modifier.fillMaxSize().padding(4.dp)
+    ) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            item {
+                Text(
+                    text = "Rendered Markdown Preview",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+            }
+
+            if (wikilinks.isNotEmpty()) {
+                item {
+                    Text(
+                        text = "Interactive Wikilinks in Document:",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        wikilinks.forEach { link ->
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .clickable { onNavigate(link.targetNodeId) }
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Text("🔗", fontSize = 11.sp)
+                                    Text(
+                                        text = link.alias ?: link.targetNodeId,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+            }
+
+            // Raw rendered text
+            item {
+                Text(
+                    text = content,
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
                 )
             }
         }

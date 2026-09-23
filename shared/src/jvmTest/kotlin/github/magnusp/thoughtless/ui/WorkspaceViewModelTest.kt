@@ -218,4 +218,30 @@ class WorkspaceViewModelTest {
         val clearedIdentity = viewModel.operatorIdentity.value
         assertEquals(github.magnusp.thoughtless.identity.OperatorAuthType.NONE, clearedIdentity.authType)
     }
+
+    @Test
+    fun testWikilinkNavigation() = runBlocking(Dispatchers.Default) {
+        // Create two documents
+        viewModel.createNewDocument("Doc Alpha")
+        kotlinx.coroutines.delay(100)
+        val alphaDocId = viewModel.selectedDocumentId.value
+        assertNotNull(alphaDocId)
+
+        viewModel.createNewDocument("Doc Beta")
+        kotlinx.coroutines.delay(100)
+        val betaDocId = viewModel.selectedDocumentId.value
+        assertNotNull(betaDocId)
+        assertEquals(betaDocId, viewModel.selectedDocumentId.value)
+
+        // Navigate to Alpha via wikilink
+        viewModel.navigateToWikilink(alphaDocId)
+        assertEquals(alphaDocId, viewModel.selectedDocumentId.value)
+        assertTrue(viewModel.navigationFeedback.value?.contains("Navigated to $alphaDocId") == true)
+
+        // Navigate to a non-existent document
+        viewModel.navigateToWikilink("doc-does-not-exist")
+        assertTrue(viewModel.navigationFeedback.value?.contains("not found") == true)
+        // Should not have switched away from Alpha
+        assertEquals(alphaDocId, viewModel.selectedDocumentId.value)
+    }
 }

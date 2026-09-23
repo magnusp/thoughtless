@@ -124,11 +124,53 @@ class WorkspaceViewModel(
         }
     }
 
+    private val _navigationFeedback = MutableStateFlow<String?>(null)
+    val navigationFeedback: StateFlow<String?> = _navigationFeedback.asStateFlow()
+
     fun selectDocument(documentId: String) {
         _selectedDocumentId.value = documentId
         val node = allNodes.value.firstOrNull { it.id == documentId }
         _editorContent.value = node?.body ?: ""
         loadInspectorData(documentId)
+    }
+
+    /**
+     * Navigates to the document or section referenced by a wikilink target.
+     * Supports document IDs ("doc-spec") and section anchors ("doc-spec#section-id" or "#local-section").
+     */
+    fun navigateToWikilink(targetNodeId: String) {
+        val currentDocId = _selectedDocumentId.value
+        val (docId, anchor) = if (targetNodeId.contains('#')) {
+            val d = targetNodeId.substringBefore('#').trim()
+            val a = targetNodeId.substringAfter('#').trim()
+            Pair(if (d.isNotBlank()) d else currentDocId, a.ifBlank { null })
+        } else {
+            Pair(targetNodeId.trim(), null)
+        }
+
+        if (docId.isNullOrBlank()) {
+            _navigationFeedback.value = "Invalid wikilink target: $targetNodeId"
+            return
+        }
+
+        val targetExists = allNodes.value.any { it.id == docId } ||
+                documentRoots.value.any { it.id == docId }
+
+        if (targetExists) {
+            selectDocument(docId)
+            if (anchor != null) {
+                // Load inspector focus for the specific section anchor
+                val fullNodeId = "$docId#$anchor"
+                loadInspectorData(fullNodeId)
+            }
+            _navigationFeedback.value = "Navigated to $docId${if (anchor != null) "#$anchor" else ""}"
+        } else {
+            _navigationFeedback.value = "Target document '$docId' not found. Save AST or create document."
+        }
+    }
+
+    fun clearNavigationFeedback() {
+        _navigationFeedback.value = null
     }
 
     fun updateEditorContent(newContent: String) {

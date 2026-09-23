@@ -19,13 +19,18 @@ class OperatorCredentialStoreTest {
     }
 
     @Test
-    fun testEnvPrecedenceOverCliAndFile() {
+    fun testEnvPrecedenceOverCliAndFileWithSelfCheck() {
         val store = OperatorCredentialStore(
             configDir = tempDir,
             envGetter = { key -> if (key == "GH_TOKEN") "gho_env_token_12345" else null },
             processRunner = { cmd ->
-                if (cmd == listOf("gh", "auth", "token")) Pair(0, "gho_cli_token_99999")
-                else Pair(0, "{\"login\":\"testuser\"}")
+                if (cmd == listOf("gh", "auth", "token")) {
+                    Pair(0, "gho_cli_token_99999")
+                } else if (cmd.contains("https://api.github.com/user")) {
+                    Pair(0, "HTTP/2 200\nx-oauth-scopes: repo, read:org\n\n{\"login\":\"testuser\",\"name\":\"Test User\"}")
+                } else {
+                    Pair(0, "{}")
+                }
             }
         )
 
@@ -34,20 +39,30 @@ class OperatorCredentialStoreTest {
         assertEquals("gho_env_token_12345", identity.token)
         assertEquals("testuser", identity.username)
         assertTrue(identity.isAuthenticated)
+
+        // Verify Self-Check
+        assertEquals(SelfCheckStatus.VERIFIED, identity.selfCheck.status)
+        assertEquals("testuser", identity.selfCheck.login)
+        assertEquals("Test User", identity.selfCheck.name)
+        assertEquals(listOf("repo", "read:org"), identity.selfCheck.scopes)
+
         // Verify toString masks token
         assertFalse(identity.toString().contains("gho_env_token_12345"))
         assertTrue(identity.toString().contains("******"))
     }
 
     @Test
-    fun testCliFallbackWhenNoEnv() {
+    fun testCliFallbackWhenNoEnvWithSelfCheck() {
         val store = OperatorCredentialStore(
             configDir = tempDir,
             envGetter = { null },
             processRunner = { cmd ->
                 when (cmd) {
                     listOf("gh", "auth", "token") -> Pair(0, "gho_cli_token_99999")
-                    listOf("gh", "api", "user", "-q", ".login") -> Pair(0, "cli_user")
+                    listOf("gh", "api", "-i", "user") -> Pair(
+                        0,
+                        "HTTP/2 200\nx-oauth-scopes: repo, gist\n\n{\"login\":\"cli_user\",\"name\":\"CLI User\"}"
+                    )
                     else -> Pair(-1, "unknown")
                 }
             }
@@ -58,6 +73,24 @@ class OperatorCredentialStoreTest {
         assertEquals("gho_cli_token_99999", identity.token)
         assertEquals("cli_user", identity.username)
         assertTrue(identity.isAuthenticated)
+        assertEquals(SelfCheckStatus.VERIFIED, identity.selfCheck.status)
+        assertEquals(listOf("repo", "gist"), identity.selfCheck.scopes)
+    }
+
+    @Test
+    fun testSelfCheckFailureOnInvalidToken() {
+        val store = OperatorCredentialStore(
+            configDir = tempDir,
+            envGetter = { key -> if (key == "GH_TOKEN") "invalid_token" else null },
+            processRunner = { _ ->
+                Pair(0, "HTTP/2 401 Unauthorized\n\n{\"message\":\"Bad credentials\"}")
+            }
+        )
+
+        val identity = store.resolveIdentity()
+        assertEquals(OperatorAuthType.ENV_VARIABLE, identity.authType)
+        assertEquals(SelfCheckStatus.INVALID, identity.selfCheck.status)
+        assertTrue(identity.selfCheck.errorMessage?.contains("authorization rejected") == true)
     }
 
     @Test
@@ -65,7 +98,13 @@ class OperatorCredentialStoreTest {
         val store = OperatorCredentialStore(
             configDir = tempDir,
             envGetter = { null },
-            processRunner = { Pair(1, "command not found") }
+            processRunner = { cmd ->
+                if (cmd.contains("https://api.github.com/user")) {
+                    Pair(0, "HTTP/2 200\nx-oauth-scopes: repo\n\n{\"login\":\"file_operator\"}")
+                } else {
+                    Pair(1, "command not found")
+                }
+            }
         )
 
         // Initially none
@@ -79,6 +118,7 @@ class OperatorCredentialStoreTest {
         assertEquals("local_pat_secret", identity.token)
         assertEquals("file_operator", identity.username)
         assertTrue(identity.isAuthenticated)
+        assertEquals(SelfCheckStatus.VERIFIED, identity.selfCheck.status)
 
         // Clear credentials
         store.clearLocalCredentials()

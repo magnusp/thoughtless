@@ -69,10 +69,24 @@ fun AgentQueueView(
             }
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                // Operator Identity Badge
+                // Operator Identity Badge with Self-Check Details
+                val selfCheck = operatorIdentity.selfCheck
+                val badgeColor = when {
+                    selfCheck.isVerified -> Color(0xFF065F46)
+                    selfCheck.status == github.magnusp.thoughtless.identity.SelfCheckStatus.INVALID -> MaterialTheme.colorScheme.errorContainer
+                    operatorIdentity.isAuthenticated -> Color(0xFF065F46)
+                    else -> MaterialTheme.colorScheme.surfaceVariant
+                }
+                val textColor = when {
+                    selfCheck.isVerified -> Color(0xFFD1FAE5)
+                    selfCheck.status == github.magnusp.thoughtless.identity.SelfCheckStatus.INVALID -> MaterialTheme.colorScheme.onErrorContainer
+                    operatorIdentity.isAuthenticated -> Color(0xFFD1FAE5)
+                    else -> MaterialTheme.colorScheme.onSurfaceVariant
+                }
+
                 Surface(
                     shape = RoundedCornerShape(8.dp),
-                    color = if (operatorIdentity.isAuthenticated) Color(0xFF065F46) else MaterialTheme.colorScheme.surfaceVariant,
+                    color = badgeColor,
                     modifier = Modifier.padding(end = 4.dp)
                 ) {
                     Row(
@@ -81,19 +95,36 @@ fun AgentQueueView(
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Text(
-                            text = if (operatorIdentity.isAuthenticated) "👤" else "🔒",
-                            fontSize = 12.sp
+                            text = if (selfCheck.isVerified) "✓" else if (operatorIdentity.isAuthenticated) "👤" else "🔒",
+                            fontSize = 12.sp,
+                            color = textColor
                         )
-                        Text(
-                            text = if (operatorIdentity.isAuthenticated) {
-                                operatorIdentity.username?.let { "@$it" } ?: "Authenticated Operator"
-                            } else {
-                                "Unauthenticated Operator"
-                            },
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = if (operatorIdentity.isAuthenticated) Color(0xFFD1FAE5) else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Column {
+                            Text(
+                                text = if (operatorIdentity.isAuthenticated) {
+                                    val userText = operatorIdentity.username?.let { "@$it" } ?: "Authenticated Operator"
+                                    if (selfCheck.name != null) "$userText (${selfCheck.name})" else userText
+                                } else {
+                                    "Unauthenticated Operator"
+                                },
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = textColor
+                            )
+                            if (selfCheck.scopes.isNotEmpty()) {
+                                Text(
+                                    text = "Scopes: ${selfCheck.scopes.joinToString(", ")}",
+                                    fontSize = 9.sp,
+                                    color = textColor.copy(alpha = 0.8f)
+                                )
+                            } else if (selfCheck.errorMessage != null) {
+                                Text(
+                                    text = selfCheck.errorMessage,
+                                    fontSize = 9.sp,
+                                    color = textColor
+                                )
+                            }
+                        }
                     }
                 }
 

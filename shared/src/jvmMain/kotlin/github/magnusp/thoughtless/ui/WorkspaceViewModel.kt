@@ -112,6 +112,11 @@ class WorkspaceViewModel(
     private val _outgoingEdges = MutableStateFlow<List<ContextEdge>>(emptyList())
     val outgoingEdges: StateFlow<List<ContextEdge>> = _outgoingEdges.asStateFlow()
 
+    private val _navigationFeedback = MutableStateFlow<String?>(null)
+    val navigationFeedback: StateFlow<String?> = _navigationFeedback.asStateFlow()
+
+    private val _documentDrafts = mutableMapOf<String, String>()
+
     init {
         // Automatically select first document if none selected and documents exist
         viewModelScope.launch {
@@ -122,11 +127,6 @@ class WorkspaceViewModel(
             }
         }
     }
-
-    private val _navigationFeedback = MutableStateFlow<String?>(null)
-    val navigationFeedback: StateFlow<String?> = _navigationFeedback.asStateFlow()
-
-    private val _documentDrafts = mutableMapOf<String, String>()
 
     fun selectDocument(documentId: String) {
         val previousDocId = _selectedDocumentId.value

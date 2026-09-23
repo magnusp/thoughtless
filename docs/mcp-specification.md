@@ -6,7 +6,7 @@ By delegating task refinement, graph queries, and DAG validation to MCP tools, e
 
 ---
 
-## Architecture Overview
+## Architecture Overview & Governance Model
 
 ```
 ┌────────────────────────────────────────────────────────┐
@@ -17,7 +17,8 @@ By delegating task refinement, graph queries, and DAG validation to MCP tools, e
 ┌────────────────────────────────────────────────────────┐
 │            Thoughtless Headless MCP Server             │
 ├────────────────────────────────────────────────────────┤
-│  • Task Refinement & Decomposition                     │
+│  • Task Refinement & Bound Decomposition               │
+│  • Discovered Work -> Proposals (`propose_task`)       │
 │  • AST Wikilink Resolution (`MUTATES`, `DEPENDS_ON`)   │
 │  • Graph Traversal & Impact Analysis (ArcadeDB)        │
 │  • Kahn's Topological Sort & Cycle Detection           │
@@ -29,16 +30,46 @@ By delegating task refinement, graph queries, and DAG validation to MCP tools, e
 └────────────────────────────────────────────────────────┘
 ```
 
+### Human-in-the-Loop Governance: Tasks vs. Proposals
+
+To prevent autonomous agents from hallucinating scope, diverging into unvetted refactors, or polluting the active Kahn DAG, Thoughtless enforces a strict separation:
+
+1. **Active Tasks (`Task`)**:
+   - Only exist in the active execution DAG.
+   - Origin: Human created, approved from frozen specs via bounded decomposition (`decompose_task`), or explicitly promoted from a proposal by an operator.
+   - Status transitions: `PENDING` -> `AGENT_RUNNING` -> `AWAITING_REVIEW` -> `MERGED` / `DONE`.
+2. **Discovered Work / Findings (`TaskProposal`)**:
+   - Origin: Autonomous agents exploring code, uncovering edge cases, missing dependencies, or technical debt during execution.
+   - Status: `PROPOSED` (held in the **Review Drawer / Inbox**).
+   - **Never enters the active DAG automatically**.
+   - Requires Human Operator action:
+     - **Accept**: Promotes proposal to a first-class `Task` and links it into the DAG.
+     - **Refine & Accept**: Operator edits title, priority, target files, or acceptance criteria before scheduling.
+     - **Deny / Dismiss**: Discards or archives the finding without scheduling.
+
 ---
 
 ## MCP Tools Reference
 
-### 1. Task Refinement & Decomposition
+### 1. Task Refinement & Proposals
 
-These tools allow an external LLM to act as the architect/planner—taking ambiguous requirements or specifications and refining them into machine-executable DAG nodes.
+These tools allow an external LLM to act as the architect/planner—refining existing work or submitting newly discovered findings for operator governance.
+
+#### `propose_task`
+Proposes a new task, architectural spike, exploration, or edge case discovered dynamically by an agent during planning or execution.
+- **Parameters**:
+  - `title` (string, required): Clear title describing the discovered requirement.
+  - `rationale` (string, required): Why this work is necessary, what was discovered, or which file prompted this finding.
+  - `type` (string, enum: `TASK`, `SPIKE`, `EXPLORATION`, `RFC`, optional, default `TASK`): Classification of the proposed work.
+  - `suggestedTargetFile` (string, optional): Target file the agent identified as needing modification.
+  - `suggestedContextFiles` (string[], optional): Associated context documents or tests.
+  - `suggestedDependsOn` (string[], optional): Existing task IDs this proposal would depend on.
+  - `acceptanceCriteria` (string[], optional): Recommended verification criteria.
+  - `sourceTaskId` (string, optional): The ID of the task the agent was executing when this discovery was made.
+- **Returns**: Created `TaskProposal` entity in `PROPOSED` status. (Does **not** mutate active execution tiers).
 
 #### `refine_task`
-Updates task details with unambiguous requirements, acceptance criteria, and explicit target files.
+Updates an existing approved task with unambiguous requirements, acceptance criteria, and explicit target files.
 - **Parameters**:
   - `taskId` (string, required): Unique identifier of the task.
   - `title` (string, optional): Refined concise task title.
@@ -50,10 +81,10 @@ Updates task details with unambiguous requirements, acceptance criteria, and exp
 - **Returns**: Updated task entity.
 
 #### `decompose_task`
-Splits a complex parent task or high-level specification into a set of atomic, DAG-schedulable subtasks with explicit dependency links.
+Splits a complex, **already approved** parent task or formal specification into atomic, DAG-schedulable subtasks within its frozen scope.
 - **Parameters**:
-  - `parentTaskId` (string, optional): ID of the task being broken down.
-  - `specId` (string, optional): ID of the specification document driving the tasks.
+  - `parentTaskId` (string, optional): ID of the approved parent task being broken down.
+  - `specId` (string, optional): ID of the frozen specification document driving the decomposition.
   - `subtasks` (array of objects, required):
     - `id` (string, required): Unique subtask slug (e.g. `task-auth-token-refresh`).
     - `title` (string, required): Subtask title.

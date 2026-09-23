@@ -126,10 +126,31 @@ class WorkspaceViewModel(
     private val _navigationFeedback = MutableStateFlow<String?>(null)
     val navigationFeedback: StateFlow<String?> = _navigationFeedback.asStateFlow()
 
+    private val _documentDrafts = mutableMapOf<String, String>()
+
     fun selectDocument(documentId: String) {
+        val previousDocId = _selectedDocumentId.value
+        val previousContent = _editorContent.value
+
+        if (previousDocId != null && previousDocId != documentId) {
+            _documentDrafts[previousDocId] = previousContent
+            val prevNode = allNodes.value.firstOrNull { it.id == previousDocId }
+            if (prevNode == null || prevNode.body != previousContent) {
+                viewModelScope.launch {
+                    val filePath = prevNode?.filePath ?: "docs/$previousDocId.md"
+                    markdownIngestionService.ingestDocument(
+                        content = previousContent,
+                        filePath = filePath,
+                        defaultNodeId = previousDocId,
+                    )
+                }
+            }
+        }
+
         _selectedDocumentId.value = documentId
         val node = allNodes.value.firstOrNull { it.id == documentId }
-        _editorContent.value = node?.body ?: ""
+        val contentToLoad = _documentDrafts[documentId] ?: node?.body ?: ""
+        _editorContent.value = contentToLoad
         loadInspectorData(documentId)
     }
 
@@ -174,20 +195,29 @@ class WorkspaceViewModel(
 
     fun updateEditorContent(newContent: String) {
         _editorContent.value = newContent
+        _selectedDocumentId.value?.let { docId ->
+            _documentDrafts[docId] = newContent
+        }
     }
 
     fun saveCurrentDocument() {
         val docId = _selectedDocumentId.value ?: return
         val content = _editorContent.value
+        _documentDrafts[docId] = content
         viewModelScope.launch {
             val node = allNodes.value.firstOrNull { it.id == docId }
             val filePath = node?.filePath ?: "docs/$docId.md"
-            markdownIngestionService.ingestDocument(content, filePath = filePath)
+            markdownIngestionService.ingestDocument(
+                content = content,
+                filePath = filePath,
+                defaultNodeId = docId,
+            )
             loadInspectorData(docId)
         }
     }
 
     fun deleteDocument(documentId: String) {
+        _documentDrafts.remove(documentId)
         viewModelScope.launch {
             contextGraphRepository.deleteDocument(documentId)
 

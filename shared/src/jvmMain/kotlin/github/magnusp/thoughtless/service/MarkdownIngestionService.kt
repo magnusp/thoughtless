@@ -39,6 +39,7 @@ class MarkdownIngestionService(
         content: String,
         filePath: String? = null,
         defaultProjectId: String? = null,
+        defaultNodeId: String? = null,
     ): IngestionResult {
         val now = currentTimeMillis()
         val document = parser.parse(content)
@@ -79,7 +80,7 @@ class MarkdownIngestionService(
             ?: filePath?.substringAfterLast('/')?.substringBeforeLast('.')
             ?: "Untitled Document"
 
-        val rootNodeId = if (!rawId.isNullOrBlank()) rawId else (filePath ?: randomId())
+        val rootNodeId = if (!rawId.isNullOrBlank()) rawId else (defaultNodeId ?: filePath ?: randomId())
 
         val rootNode = ContextNode(
             id = rootNodeId,
@@ -118,8 +119,9 @@ class MarkdownIngestionService(
         content: String,
         filePath: String? = null,
         defaultProjectId: String? = null,
+        defaultNodeId: String? = null,
     ): IngestionResult {
-        val result = parse(content, filePath, defaultProjectId)
+        val result = parse(content, filePath, defaultProjectId, defaultNodeId)
         graphRepository?.let { repo ->
             repo.saveNode(result.rootNode)
             for (section in result.sectionNodes) {

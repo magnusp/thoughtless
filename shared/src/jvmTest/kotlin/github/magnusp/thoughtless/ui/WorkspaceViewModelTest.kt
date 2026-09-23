@@ -247,6 +247,41 @@ class WorkspaceViewModelTest {
     }
 
     @Test
+    fun testDocumentSwitchPreservesEdits() = runBlocking(Dispatchers.Default) {
+        // Create Doc Alpha and Doc Beta
+        viewModel.createNewDocument("Doc Alpha")
+        kotlinx.coroutines.delay(100)
+        val alphaDocId = viewModel.selectedDocumentId.value
+        assertNotNull(alphaDocId)
+
+        viewModel.createNewDocument("Doc Beta")
+        kotlinx.coroutines.delay(100)
+        val betaDocId = viewModel.selectedDocumentId.value
+        assertNotNull(betaDocId)
+        assertEquals(betaDocId, viewModel.selectedDocumentId.value)
+
+        // Edit Doc Beta content without clicking manual Save & Parse AST
+        val editedBetaContent = "# Doc Beta\nUpdated content with [[$alphaDocId]]"
+        viewModel.updateEditorContent(editedBetaContent)
+
+        // Switch to Doc Alpha
+        viewModel.selectDocument(alphaDocId)
+        kotlinx.coroutines.delay(150)
+        assertEquals(alphaDocId, viewModel.selectedDocumentId.value)
+
+        // Switch back to Doc Beta
+        viewModel.selectDocument(betaDocId)
+        kotlinx.coroutines.delay(100)
+        assertEquals(betaDocId, viewModel.selectedDocumentId.value)
+        assertEquals(editedBetaContent, viewModel.editorContent.value)
+
+        // Also verify it was persisted in the graph repository
+        val betaNode = graphRepo.getNodeById(betaDocId).first()
+        assertNotNull(betaNode)
+        assertEquals(editedBetaContent, betaNode.body)
+    }
+
+    @Test
     fun testDeleteDocument() = runBlocking(Dispatchers.Default) {
         // Create two documents
         viewModel.createNewDocument("Document One")

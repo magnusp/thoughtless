@@ -151,7 +151,13 @@ Every task in the queue transitions through a strict state machine:
    - **Click `Approve`**: Promotes status to `MERGED` and marks the underlying task as `TaskStatus.DONE`. Unblocks downstream dependent tasks in subsequent tiers.
    - **Click `Reject`**: Sends the task back to `PENDING` for re-execution or refinement.
 
-### 4.3 Exporting for External Agents
+### 4.3 Review Drawer: Discovered Proposals & Agent Scratchpad
+
+In addition to scheduled tasks, autonomous workers can discover work dynamically or report progress:
+- **Discovered Work Proposals (`propose_task`)**: Findings submitted by agents land in the **Review Drawer / Inbox** in `PROPOSED` status. They do not enter the active DAG until an operator reviews them (Accept, Refine & Accept, or Deny).
+- **Agent Scratchpad (`update_task_progress`)**: While executing (`AGENT_RUNNING`), agents publish their `currentStep`, running `notes`, `touchedFiles`, and `completedCriteria` directly onto the task card for live visibility.
+
+### 4.4 Exporting for External Agents
 
 Click **`Export Agent DAG JSON`** in the Agent Queue to generate the complete JSON payload conforming to `thoughtless.agentTask`:
 
@@ -181,7 +187,41 @@ External CLI workers or autonomous LLMs can consume this JSON to execute the pla
 
 ---
 
-## 5. Federated Sync (ATProto)
+## 5. Headless MCP Server & External Agent Coordination
+
+Thoughtless includes a headless **Model Context Protocol (MCP)** server module (`:mcpServer`) that exposes the embedded ArcadeDB context graph, task management, and DAG decomposition engine over JSON-RPC 2.0 / stdio.
+
+### 5.1 Connecting External Agents (Seamless Desktop & Headless Concurrency)
+
+Thoughtless supports running autonomous agents while the Desktop app is open simultaneously:
+- **Desktop In-Process Sidecar**: When the Desktop App starts, it automatically launches an in-process MCP socket listener on `127.0.0.1:8765` (configurable via `THOUGHTLESS_MCP_PORT`).
+- **Auto-Proxy Bridge**: Running `./gradlew :mcpServer:run --quiet` automatically detects the running Desktop App and acts as a transparent stdio-to-socket proxy. Any tool calls (such as creating proposals or updating scratchpads) mutate the exact same in-memory models and embedded database live in the UI without database lock contention.
+- **Standalone Fallback**: If the Desktop App is not running, `:mcpServer:run` opens the embedded ArcadeDB database directly at `~/.thoughtless/graph` (or `THOUGHTLESS_DB_PATH`).
+
+To configure Claude Code, Cursor, or Antigravity to connect to Thoughtless:
+
+```json
+{
+  "mcpServers": {
+    "thoughtless": {
+      "command": "./gradlew",
+      "args": [":mcpServer:run", "--quiet"]
+    }
+  }
+}
+```
+
+### 5.2 Multi-Agent Concurrency & Worktree Protocol
+- **Disjoint Target Invariant**: The scheduler guarantees tasks in the same parallel execution tier never touch the same `(workspace, targetFile)`.
+- **Git Worktree Isolation**: Agents should not mutate a shared working directory. When claiming a task via `claim_next_task`, agents should bind execution to an isolated git worktree:
+  ```bash
+  git worktree add -B "agent/$TASK_ID" "/tmp/workspaces/$TASK_ID" origin/main
+  ```
+- **Operator Identity & Workspaces**: Canonical repository identifiers (e.g. `github.com/org/repo`) are validated by `WorkspaceValidator`. Clones and credentials reside securely under `~/.thoughtless`.
+
+---
+
+## 6. Federated Sync (ATProto)
 
 All local entities—**Specs**, **Context Nodes**, **Context Edges**, and **Agent Tasks**—are serialized according to the ATProto Lexicon schemas (`lexicons/thoughtless.*.json`). 
 

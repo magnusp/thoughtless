@@ -72,6 +72,9 @@ Thoughtless links Markdown documents into the graph using `[[wikilinks]]`:
 - Standard run: `./gradlew :desktopApp:run`
 - Hot reload: `./gradlew :desktopApp:hotRun --auto`
 
+### Headless MCP Server
+- Standard stdio run: `./gradlew :mcpServer:run --quiet`
+
 ### Running Tests
 - Desktop & Shared Tests: `./gradlew :shared:jvmTest`
 - Full Project Verification: `./gradlew check`

@@ -191,18 +191,21 @@ External CLI workers or autonomous LLMs can consume this JSON to execute the pla
 
 Thoughtless includes a headless **Model Context Protocol (MCP)** server module (`:mcpServer`) that exposes the embedded ArcadeDB context graph, task management, and DAG decomposition engine over JSON-RPC 2.0 / stdio.
 
-### 5.1 Connecting External Agents
-To connect Claude Code, Cursor, or Antigravity to Thoughtless:
+### 5.1 Connecting External Agents (Seamless Desktop & Headless Concurrency)
+
+Thoughtless supports running autonomous agents while the Desktop app is open simultaneously:
+- **Desktop In-Process Sidecar**: When the Desktop App starts, it automatically launches an in-process MCP socket listener on `127.0.0.1:8765` (configurable via `THOUGHTLESS_MCP_PORT`).
+- **Auto-Proxy Bridge**: Running `./gradlew :mcpServer:run --quiet` automatically detects the running Desktop App and acts as a transparent stdio-to-socket proxy. Any tool calls (such as creating proposals or updating scratchpads) mutate the exact same in-memory models and embedded database live in the UI without database lock contention.
+- **Standalone Fallback**: If the Desktop App is not running, `:mcpServer:run` opens the embedded ArcadeDB database directly at `~/.thoughtless/graph` (or `THOUGHTLESS_DB_PATH`).
+
+To configure Claude Code, Cursor, or Antigravity to connect to Thoughtless:
 
 ```json
 {
   "mcpServers": {
     "thoughtless": {
       "command": "./gradlew",
-      "args": [":mcpServer:run", "--quiet"],
-      "env": {
-        "THOUGHTLESS_DB_PATH": "/home/user/.thoughtless/arcadedb"
-      }
+      "args": [":mcpServer:run", "--quiet"]
     }
   }
 }

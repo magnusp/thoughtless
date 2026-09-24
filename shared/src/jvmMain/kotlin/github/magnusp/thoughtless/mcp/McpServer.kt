@@ -17,9 +17,13 @@ import kotlinx.serialization.json.jsonObject
 import java.io.BufferedReader
 import java.io.InputStream
 import java.io.PrintStream
+import java.net.ServerSocket
+import java.net.Socket
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.concurrent.thread
 
 class McpServer(
-    private val tools: ThoughtlessMcpTools,
+    val tools: ThoughtlessMcpTools,
     private val inputStream: InputStream = System.`in`,
     private val outputStream: PrintStream = System.out,
 ) {
@@ -29,12 +33,19 @@ class McpServer(
         prettyPrint = false
     }
 
+    private val isRunning = AtomicBoolean(false)
+    private var serverSocket: ServerSocket? = null
+
+    /**
+     * Starts listening on standard input (stdio transport loop).
+     */
     fun start() {
+        isRunning.set(true)
         val reader = inputStream.bufferedReader()
         System.err.println("[MCP] Thoughtless MCP Server listening on standard input...")
 
         try {
-            while (true) {
+            while (isRunning.get()) {
                 val line = reader.readLine() ?: break
                 if (line.isBlank()) continue
 
@@ -48,8 +59,66 @@ class McpServer(
                 }
             }
         } catch (e: Exception) {
-            System.err.println("[MCP] Fatal read error: ${e.message}")
+            if (isRunning.get()) {
+                System.err.println("[MCP] Fatal read error: ${e.message}")
+            }
         }
+    }
+
+    /**
+     * Starts the MCP server on a local TCP socket sidecar (e.g. port 8765)
+     * allowing external agents or proxy bridges to communicate with the Desktop app in-process.
+     */
+    fun startSocketServer(port: Int = DEFAULT_TCP_PORT): Thread {
+        isRunning.set(true)
+        val server = ServerSocket(port, 50, java.net.InetAddress.getByName("127.0.0.1"))
+        this.serverSocket = server
+        System.err.println("[MCP] Thoughtless In-Process MCP Server listening on 127.0.0.1:$port")
+
+        return thread(name = "Thoughtless-MCP-Socket-Acceptor", isDaemon = true) {
+            try {
+                while (isRunning.get() && !server.isClosed) {
+                    val clientSocket = server.accept()
+                    thread(name = "Thoughtless-MCP-Client-${clientSocket.port}", isDaemon = true) {
+                        handleClientConnection(clientSocket)
+                    }
+                }
+            } catch (e: Exception) {
+                if (isRunning.get() && !server.isClosed) {
+                    System.err.println("[MCP] Socket acceptor error: ${e.message}")
+                }
+            }
+        }
+    }
+
+    private fun handleClientConnection(socket: Socket) {
+        socket.use { client ->
+            val reader = client.getInputStream().bufferedReader()
+            val writer = PrintStream(client.getOutputStream(), true)
+
+            try {
+                while (isRunning.get() && !client.isClosed) {
+                    val line = reader.readLine() ?: break
+                    if (line.isBlank()) continue
+
+                    val response = handleLine(line.trim())
+                    if (response != null) {
+                        val responseJson = json.encodeToString(JsonRpcResponse.serializer(), response)
+                        synchronized(writer) {
+                            writer.println(responseJson)
+                            writer.flush()
+                        }
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+    }
+
+    fun stop() {
+        isRunning.set(false)
+        try {
+            serverSocket?.close()
+        } catch (_: Exception) {}
     }
 
     fun handleLine(line: String): JsonRpcResponse? {
@@ -158,5 +227,9 @@ class McpServer(
                 )
             )
         }
+    }
+
+    companion object {
+        const val DEFAULT_TCP_PORT = 8765
     }
 }

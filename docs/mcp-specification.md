@@ -184,11 +184,11 @@ To configure Claude Code, Cursor, or Antigravity to connect to the Thoughtless M
   "mcpServers": {
     "thoughtless": {
       "command": "./gradlew",
-      "args": [":mcpServer:run", "--quiet"],
-      "env": {
-        "THOUGHTLESS_DB_PATH": "/home/user/.thoughtless/arcadedb"
-      }
+      "args": [":mcpServer:run", "--quiet"]
     }
   }
 }
 ```
+> [!TIP]
+> If the Thoughtless Desktop App is open, `:mcpServer:run` automatically bridges all stdio JSON-RPC traffic to the Desktop App's in-process sidecar on `127.0.0.1:8765`, providing live UI updates and zero database lock conflicts. If the Desktop App is closed, `:mcpServer:run` launches standalone with embedded ArcadeDB at `~/.thoughtless/graph`.
+
